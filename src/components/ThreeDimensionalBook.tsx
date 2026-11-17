@@ -1,7 +1,7 @@
 import React, { useLayoutEffect, useState } from 'react';
 import { motion, useSpring, useMotionValue, useMotionTemplate, useReducedMotion, useTransform } from 'framer-motion';
 import { Play } from 'lucide-react';
-import { Album } from '../types';
+import { Album, ShelfDisplayMode } from '../types';
 import { HardcoverArtwork } from './HardcoverArtwork';
 import type { useShelfDrag } from './useShelfDrag';
 
@@ -9,9 +9,9 @@ const stackRotations = [-6, 3, -3];
 
 interface ThreeDimensionalBookProps {
   album: Album;
-  displayMode?: 'shelf' | 'stacked';
-  stackIndex?: number;
-  totalStacked?: number;
+  displayMode: ShelfDisplayMode;
+  index: number;
+  total: number;
   onOpen: () => void;
   onPlay: () => void;
   sortControls?: React.ReactNode;
@@ -21,9 +21,9 @@ interface ThreeDimensionalBookProps {
 
 export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
   album,
-  displayMode = 'shelf',
-  stackIndex = 0,
-  totalStacked = 1,
+  displayMode,
+  index,
+  total,
   onOpen,
   onPlay,
   sortControls,
@@ -34,6 +34,7 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
   const [showQuickPlay, setShowQuickPlay] = useState(false);
   const reduceMotion = useReducedMotion();
   const stacked = displayMode === 'stacked';
+  const fan = displayMode === 'fan';
 
   // Mouse tilt physics with spring smoothing
   const x = useMotionValue(0);
@@ -42,23 +43,28 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
   const mouseXSpring = useSpring(x, { stiffness: 220, damping: 20 });
   const mouseYSpring = useSpring(y, { stiffness: 220, damping: 20 });
 
-  // The slight resting angle keeps the fore-edge visible before hovering.
-  const baseRestingRotateY = stacked ? -12 : stackIndex === 0 ? -9 : stackIndex === totalStacked - 1 ? -4 : -6;
+  const baseRestingRotateX = stacked || fan ? 4 : 0;
+  const baseRestingRotateY = stacked ? -12 : fan ? -10 : index === 0 ? -9 : index === total - 1 ? -4 : -6;
+  const hovering = isHovered && !reduceMotion;
+  const pointerTilt = stacked ? 0 : fan ? (hovering ? 0.35 : 0) : 1;
+  const restingRotateX = useSpring(baseRestingRotateX, { stiffness: 170, damping: 24 });
   const restingRotateY = useSpring(baseRestingRotateY, { stiffness: 170, damping: 24 });
-  const stacking = useSpring(stacked ? 1 : 0, { stiffness: 170, damping: 24 });
+  const tiltStrength = useSpring(pointerTilt, { stiffness: 170, damping: 24 });
   useLayoutEffect(() => {
     if (reduceMotion) {
+      restingRotateX.jump(baseRestingRotateX);
       restingRotateY.jump(baseRestingRotateY);
-      stacking.jump(stacked ? 1 : 0);
+      tiltStrength.jump(pointerTilt);
     } else {
+      restingRotateX.set(baseRestingRotateX);
       restingRotateY.set(baseRestingRotateY);
-      stacking.set(stacked ? 1 : 0);
+      tiltStrength.set(pointerTilt);
     }
-  }, [baseRestingRotateY, reduceMotion, restingRotateY, stacked, stacking]);
+  }, [baseRestingRotateX, baseRestingRotateY, pointerTilt, reduceMotion, restingRotateX, restingRotateY, tiltStrength]);
 
   // 3D rotations based on cursor
-  const rotateX = useTransform(() => stacking.get() * 4 - mouseYSpring.get() * (1 - stacking.get()) * 20);
-  const rotateY = useTransform(() => restingRotateY.get() + mouseXSpring.get() * (1 - stacking.get()) * 28);
+  const rotateX = useTransform(() => restingRotateX.get() - mouseYSpring.get() * tiltStrength.get() * 20);
+  const rotateY = useTransform(() => restingRotateY.get() + mouseXSpring.get() * tiltStrength.get() * 28);
 
   // Dynamic light glare position
   const glareX = useTransform(mouseXSpring, [-0.5, 0.5], ['0%', '100%']);
@@ -83,9 +89,27 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
     y.set(0);
   };
 
-  const stackRotation = stackRotations[stackIndex % stackRotations.length];
-  const stackOffset = stackIndex - (totalStacked - 1) / 2;
-  const hovering = isHovered && !reduceMotion;
+  const offset = index - (total - 1) / 2;
+  const fanSpacing = 0.58;
+
+  // Symmetrical fan angle fanning out from center
+  const fanAngle = offset * 6.5;
+  // On hover, book straightens slightly towards vertical
+  const rotation = fan ? (hovering ? fanAngle * 0.25 : fanAngle) : stacked && !hovering ? stackRotations[index % stackRotations.length] : 0;
+
+  // Stacking order: center books in front, outer books tuck behind; hovered book leaps to topmost (z: 50)
+  const centerDistance = Math.abs(offset);
+  const fanBaseLayer = Math.round(35 - centerDistance * 4) + (offset > 0 ? 1 : 0);
+  const bookLayer = hovering ? 50 : fan ? fanBaseLayer : 10 + index;
+
+  const slotStyle = {
+    '--fan-span': fan ? Math.max(2, (total - 1) * fanSpacing + 1.25) : undefined,
+    '--book-layer': bookLayer,
+    left: fan ? `calc(var(--shelf-book-width) * ${offset * fanSpacing})`
+      : stacked ? `calc(clamp(10px, (100cqi - 12rem) / 3, 23%) * ${offset})` : undefined,
+    top: fan ? `calc(var(--shelf-book-width) * ${Math.pow(Math.abs(offset), 2) * 0.012})`
+      : stacked ? index * 8 : undefined
+  } as React.CSSProperties;
 
   return (
     <motion.div
@@ -93,23 +117,23 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
       layout={sortControls && !reduceMotion ? 'position' : false}
       data-shelf-slot={album.id}
       data-sort-album={sortControls ? album.id : undefined}
-      style={{
-        left: stacked ? `calc(clamp(10px, (100cqi - 12rem) / 3, 23%) * ${stackOffset})` : undefined,
-        top: stacked ? stackIndex * 8 : undefined,
-        zIndex: hovering ? 40 : 10 + stackIndex
-      }}
-      className={`relative flex shrink-0 flex-col items-center select-none ${dropClass} ${stacked ? 'col-start-1 row-start-1' : ''}`}
+      data-fan-book={fan || undefined}
+      style={slotStyle}
+      className={`shelf-book-slot relative flex shrink-0 flex-col items-center select-none ${dropClass} ${stacked || fan ? 'col-start-1 row-start-1' : ''}`}
     >
       <motion.div
         initial={false}
-        style={{ perspective: 1200 }}
-        animate={{
-          rotateZ: stacked && !hovering ? stackRotation : 0,
-          x: `${stacked && hovering ? stackOffset * 12.65 : 0}%`,
-          y: hovering ? stacked ? -15 : -10 : 0,
-          scale: stacked && hovering ? 1.02 : 1
+        style={{
+          perspective: 1200,
+          transformOrigin: fan ? '50% 120%' : '50% 50%'
         }}
-        transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 220, damping: 30 }}
+        animate={{
+          rotateZ: rotation,
+          x: `${stacked && hovering ? offset * 12.65 : 0}%`,
+          y: hovering ? (fan ? -22 : stacked ? -15 : -10) : 0,
+          scale: hovering ? (fan ? 1.03 : stacked ? 1.02 : 1) : 1
+        }}
+        transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 220, damping: 28 }}
       >
         <motion.div
           onPointerMove={dragHandlers ? undefined : handlePointerMove}
@@ -121,7 +145,7 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
             handlePointerLeave();
           }}
           style={{
-            rotateX: reduceMotion ? stacked ? 4 : 0 : rotateX,
+            rotateX: reduceMotion ? baseRestingRotateX : rotateX,
             rotateY: reduceMotion ? baseRestingRotateY : rotateY,
             transformStyle: 'preserve-3d'
           }}
@@ -158,7 +182,7 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
               <button
                 type="button"
                 className="shelf-book-trigger"
-                data-stack-landing={stacked || undefined}
+                data-stack-landing={stacked || fan || undefined}
                 aria-label={`翻开《${album.title}》`}
                 onClick={onOpen}
               />
@@ -174,8 +198,8 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
         </motion.div>
       </motion.div>
 
-      {!stacked && (
-        <div className="mt-5 flex h-10 items-center justify-center">
+      {!stacked && !fan && (
+        <div className="absolute inset-x-0 top-full mt-5 flex h-10 items-center justify-center">
           {sortControls ?? <span className="max-w-48 truncate text-sm opacity-75">{album.artist}</span>}
         </div>
       )}

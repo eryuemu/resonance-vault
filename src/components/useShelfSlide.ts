@@ -27,7 +27,7 @@ export function useShelfSlide() {
   useLayoutEffect(() => stop, []);
 
   return (row: HTMLElement | null, nextIds: string[], reduceMotion: boolean, update: () => void, direction?: -1 | 1) => {
-    if (!row || reduceMotion || !row.animate || !CSS.supports('translate', '1px 1px')) {
+    if (!row || reduceMotion || !row.animate || !CSS.supports('scale', '1 1')) {
       stop();
       update();
       return;
@@ -46,7 +46,7 @@ export function useShelfSlide() {
       copy.querySelectorAll('[data-cover]').forEach((cover) => cover.removeAttribute('data-cover'));
       copy.inert = true;
       copy.setAttribute('aria-hidden', 'true');
-      return [{ copy, id, bounds, index }];
+      return [{ copy, id, bounds, index, width: getComputedStyle(book).width }];
     });
 
     // Measure the moving books before cancelling so a reversal starts in place.
@@ -54,15 +54,25 @@ export function useShelfSlide() {
     flushSync(update);
     const landingViewport = row.getBoundingClientRect();
 
-    const play = (book: HTMLElement, fromX: number, fromY: number, toX: number, index: number) => {
+    const play = (book: HTMLElement, start: DOMRect, end: DOMRect, index: number, exitX?: number) => {
+      if (!end.width || !end.height) return;
+      const fromX = start.left - end.left;
+      const fromY = start.top - end.top;
+      const toX = exitX ?? 0;
+      const scaleX = start.width / end.width;
+      const scaleY = start.height / end.height;
       const distance = Math.hypot(toX - fromX, fromY);
-      if (distance < 1) return;
+      if (distance < 1 && Math.abs(scaleX - 1) < 0.01 && Math.abs(scaleY - 1) < 0.01) return;
       const lift = Math.min(distance * 0.09, 16);
       const frames = Array.from({ length: 9 }, (_, step) => {
         const progress = step / 8;
         const x = fromX + (toX - fromX) * progress;
         const y = fromY * (1 - progress) - 4 * lift * progress * (1 - progress);
-        return { translate: `${x}px ${y}px` };
+        const resize = exitX === undefined ? 1 - progress : 1;
+        return {
+          translate: `${x}px ${y}px`,
+          scale: `${1 + (scaleX - 1) * resize} ${1 + (scaleY - 1) * resize}`
+        };
       });
       const flight = book.animate(frames, {
         duration: 480 + Math.min(distance * 0.14, 78) + (index % 4) * 12,
@@ -79,21 +89,22 @@ export function useShelfSlide() {
       if (!intersectsRow(bounds, landingViewport) && (!start || !intersectsRow(start, viewport))) return;
       const enterFromLeft = direction ? direction < 0 : bounds.left + bounds.width / 2 < landingViewport.left + landingViewport.width / 2;
       const edge = enterFromLeft ? landingViewport.left - bounds.width - 24 : landingViewport.right + 24;
-      play(book, (start?.left ?? edge) - bounds.left, start ? start.top - bounds.top : 0, 0, index);
+      play(book, start ?? new DOMRect(edge, bounds.top, bounds.width, bounds.height), bounds, index);
     });
 
-    departures.forEach(({ copy, id, bounds, index }) => {
+    departures.forEach(({ copy, id, bounds, index, width }) => {
       const left = bounds.left - landingViewport.left;
       const top = bounds.top - landingViewport.top;
       Object.assign(copy.style, {
         position: 'absolute', left: `${left + row.scrollLeft}px`, top: `${top + row.scrollTop}px`,
-        width: `${bounds.width}px`, transform: 'none', pointerEvents: 'none'
+        width, transform: 'none', pointerEvents: 'none'
       });
+      copy.style.setProperty('--shelf-book-width', width);
       row.append(copy);
       leaving.current.set(id, copy);
       const exitToLeft = direction ? direction > 0 : index < nextIds.length;
       const edge = exitToLeft ? -bounds.width - 24 : landingViewport.width + 24;
-      const flight = play(copy, 0, 0, edge - left, index);
+      const flight = play(copy, bounds, copy.getBoundingClientRect(), index, edge - left);
       const remove = () => {
         copy.remove();
         if (leaving.current.get(id) === copy) leaving.current.delete(id);

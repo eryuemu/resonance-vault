@@ -191,5 +191,39 @@ export const LOCAL_ARCHIVE: Album[] = [
         audioUrl: '/albums/luo_meijian_budiansha/洛天依 - 眉间不点砂 (14周年生日会).m4a'
       }
     ]
+  },
+  {
+    id: 'luo-xiadengma',
+    catalogNumber: 'CAT. CC-2025-HORSE',
+    title: '下等马',
+    subtitle: 'ChiliChill feat. 洛天依',
+    artist: '洛天依 / ChiliChill',
+    releaseDate: '2025 年 5 月',
+    publisher: 'ChiliChill',
+    studio: 'ChiliChill 工作室',
+    artwork: '/albums/luo_xiadengma/cover.jpg',
+    videoUrl: '/albums/luo_xiadengma/洛天依 - 下等马.mp4',
+    aspectRatio: 'landscape',
+    artworkPosition: 'object-[78%_25%]',
+    dimensions: '1920 × 1080',
+    description: '“嘿！牵起我的下等马，大摇大摆走天下。”由 ChiliChill 作词/作编曲，kurattes 绘制曲绘，哈士奇P 调教的超人气国风洛天依原创歌曲。',
+    credits: [
+      { label: '演唱歌姬', value: '洛天依' },
+      { label: '作词 / 作编曲', value: 'ChiliChill' },
+      { label: '声库调校', value: '哈士奇P' },
+      { label: '原画曲绘', value: 'kurattes' },
+      { label: '投稿来源', value: 'YuH_ChiliChill · BV1sy7VzrESV' }
+    ],
+    tracks: [
+      {
+        id: 'xiadengma-01',
+        trackNumber: 1,
+        title: '下等马',
+        artist: '洛天依',
+        composer: 'ChiliChill',
+        duration: '03:07',
+        audioUrl: '/albums/luo_xiadengma/洛天依 - 下等马.m4a'
+      }
+    ]
   }
 ];

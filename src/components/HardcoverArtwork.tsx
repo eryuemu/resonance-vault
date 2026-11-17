@@ -9,7 +9,9 @@ export function HardcoverArtwork({ album, lit = false, sheen }: { album: Album; 
           src={album.artwork}
           alt={album.title}
           className={`w-full h-full transition-[filter] duration-300 ${lit ? 'brightness-100' : 'brightness-[0.92]'} ${
-            album.aspectRatio === 'landscape'
+            album.artworkPosition
+              ? `object-cover ${album.artworkPosition} scale-[1.04]`
+              : album.aspectRatio === 'landscape'
               ? 'object-cover object-center scale-[1.04]'
               : 'object-cover object-top'
           }`}

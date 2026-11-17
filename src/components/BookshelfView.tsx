@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Layers, Columns3, Sun, Moon, Search, X, GripVertical, ChevronLeft, ChevronRight, Play, ArrowUpDown, Check } from 'lucide-react';
+import { Layers, Columns3, GalleryHorizontalEnd, Sun, Moon, Search, X, GripVertical, ChevronLeft, ChevronRight, Play, ArrowUpDown, Check } from 'lucide-react';
 import { ThreeDimensionalBook } from './ThreeDimensionalBook';
 import { Album, ShelfDisplayMode, ThemeMode, Track } from '../types';
 import { useShelfDrag } from './useShelfDrag';
@@ -11,10 +11,10 @@ interface BookshelfViewProps {
   albums: Album[];
   search: string;
   searchOpen: boolean;
-  stackPage: number;
+  shelfPage: number;
   onSearch: (query: string) => void;
   onSearchOpenChange: (open: boolean) => void;
-  onStackPageChange: (page: number) => void;
+  onShelfPageChange: (page: number) => void;
   onMoveAlbum: (id: string, target: string) => void;
   onPlayAlbum: (album: Album) => void;
   onPlayTrack: (track: Track) => void;
@@ -25,17 +25,17 @@ interface BookshelfViewProps {
   onSelectAlbum: (album: Album) => void;
 }
 
-const stackPageSize = 4;
+const pageSizes = { stacked: 4, fan: 5 };
 const searchPageSize = 40;
 
 export const BookshelfView: React.FC<BookshelfViewProps> = ({
   albums,
   search,
   searchOpen,
-  stackPage,
+  shelfPage,
   onSearch,
   onSearchOpenChange,
-  onStackPageChange,
+  onShelfPageChange,
   onMoveAlbum,
   onPlayAlbum,
   onPlayTrack,
@@ -64,17 +64,22 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
     });
   }, [albums, query]);
   const mode = query ? 'search' : displayMode;
-  const stackPageCount = Math.ceil(results.length / stackPageSize);
+  const pageSize = mode === 'stacked' || mode === 'fan' ? pageSizes[mode] : 0;
+  const pageCount = pageSize ? Math.ceil(results.length / pageSize) : 0;
   const canSort = sorting && !query;
   const orderedResults = active
     ? moveItem(results, results.findIndex(({ album }) => album.id === active.id),
       results.findIndex(({ album }) => album.id === active.target))
     : results;
-  const albumsOnPage = (page: number) => orderedResults.slice(page * stackPageSize, (page + 1) * stackPageSize);
-  const displayedAlbums = mode === 'stacked' ? albumsOnPage(stackPage) : orderedResults;
+  const albumsOnPage = (value: ShelfDisplayMode, page: number) => {
+    if (value === 'shelf') return orderedResults;
+    const size = pageSizes[value];
+    return orderedResults.slice(page * size, (page + 1) * size);
+  };
+  const displayedAlbums = albumsOnPage(displayMode, shelfPage);
   const toolbarButton = 'archive-control inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1.5 text-xs sm:text-sm';
   const displayButton = (value: ShelfDisplayMode) =>
-    `archive-control flex items-center gap-1.5 rounded px-2.5 py-1.5 aria-pressed:bg-[#c5a059]/15 ${displayMode === value ? 'font-semibold' : ''}`;
+    `archive-control flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded px-1 sm:flex-none sm:px-2.5 py-1.5 aria-pressed:bg-[#c5a059]/15 ${displayMode === value ? 'font-semibold' : ''}`;
 
   const updateScrollEdges = () => {
     const row = rowRef.current;
@@ -123,13 +128,19 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
   };
 
   const slideTo = (value: ShelfDisplayMode, page: number, update: () => void, direction?: -1 | 1) => {
-    const nextAlbums = value === 'stacked' ? albumsOnPage(page) : orderedResults;
+    const nextAlbums = albumsOnPage(value, page);
     slideBooks(rowRef.current, nextAlbums.map(({ album }) => album.id), !!reduceMotion, update, direction);
   };
 
-  const changeDisplay = (value: ShelfDisplayMode, update: () => void) => {
-    if (mode === 'search' || (mode === value && (value === 'shelf' || stackPage === 0))) update();
-    else slideTo(value, 0, update, mode === 'stacked' && value === 'stacked' ? -1 : undefined);
+  const changeDisplay = (value: ShelfDisplayMode, update: (page: number) => void) => {
+    if (mode === 'search' || (mode === value && (value === 'shelf' || shelfPage === 0))) {
+      update(0);
+      return;
+    }
+    const page = mode !== value && mode !== 'shelf' && value !== 'shelf'
+      ? Math.floor((shelfPage * pageSizes[mode] + Math.floor(displayedAlbums.length / 2)) / pageSizes[value])
+      : 0;
+    slideTo(value, page, () => update(page), mode === value ? -1 : undefined);
   };
 
   const sortControls = (album: Album, index: number) => !canSort ? undefined : (
@@ -162,7 +173,7 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
     <div className="flex-1 flex flex-col justify-between px-6 md:px-14 lg:px-20 py-4 md:py-6 w-full max-w-7xl mx-auto select-none">
       {/* Top Architectural Gallery Header (No Sidebar!) */}
       <header
-        className={`flex flex-col md:flex-row md:items-end justify-between gap-4 mb-5 pb-4 border-b transition-colors ${
+        className={`flex flex-col xl:flex-row xl:items-end justify-between gap-4 mb-5 pb-4 border-b transition-colors ${
           isDark ? 'border-[#1f212a]' : 'border-[#dedad0]'
         }`}
       >
@@ -268,7 +279,10 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
               aria-pressed={sorting}
               onClick={() => {
                 changeDisplay('shelf', () => {
-                  if (displayMode === 'stacked') onDisplayModeChange('shelf');
+                  if (displayMode !== 'shelf') {
+                    onShelfPageChange(0);
+                    onDisplayModeChange('shelf');
+                  }
                   setSorting(!sorting);
                 });
               }}
@@ -295,40 +309,6 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
             </button>
           )}
 
-          {/* Display Mode Switcher (立架并列 vs 画册叠放) */}
-          <div
-            className={`flex items-center space-x-1 p-1 rounded-lg border text-sm font-mono ${
-              isDark
-                ? 'bg-[#131418] border-[#22242e]'
-                : 'bg-[#ffffff] border-[#d4d0c5] shadow-sm'
-            }`}
-          >
-            {([
-              ['shelf', '立架并列', Columns3],
-              ['stacked', '画册叠放', Layers]
-            ] as const).map(([value, label, Icon]) => (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={displayMode === value}
-                onClick={() => changeDisplay(value, () => {
-                  if (value === 'stacked') setSorting(false);
-                  onStackPageChange(0);
-                  setSearchLimit(searchPageSize);
-                  if (searchOpen) {
-                    onSearch('');
-                    onSearchOpenChange(false);
-                  }
-                  onDisplayModeChange(value);
-                })}
-                className={displayButton(value)}
-              >
-                <Icon className="h-4 w-4" aria-hidden="true" />
-                <span className="text-xs sm:text-sm">{label}</span>
-              </button>
-            ))}
-          </div>
-
           {/* 黑白切换按钮 (Light / Dark Monochrome Toggle) */}
           <button
             onClick={onToggleTheme}
@@ -351,6 +331,40 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
               </>
             )}
           </button>
+
+          <div role="group" aria-label="陈列方式"
+            className={`flex w-full items-center gap-1 rounded-lg border p-1 font-mono sm:w-auto ${
+              isDark
+                ? 'bg-[#131418] border-[#22242e]'
+                : 'bg-[#ffffff] border-[#d4d0c5] shadow-sm'
+            }`}
+          >
+            {([
+              ['shelf', '立架并列', Columns3],
+              ['stacked', '画册叠放', Layers],
+              ['fan', '扇形陈列', GalleryHorizontalEnd]
+            ] as const).map(([value, label, Icon]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={displayMode === value}
+                onClick={() => changeDisplay(value, (page) => {
+                  if (value !== 'shelf') setSorting(false);
+                  onShelfPageChange(page);
+                  setSearchLimit(searchPageSize);
+                  if (searchOpen) {
+                    onSearch('');
+                    onSearchOpenChange(false);
+                  }
+                  onDisplayModeChange(value);
+                })}
+                className={displayButton(value)}
+              >
+                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="text-xs sm:text-sm">{label}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 
@@ -429,16 +443,16 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
             <>
               <div ref={rowRef} data-shelf-scroll={mode === 'shelf' ? '' : undefined} onScroll={updateScrollEdges}
                 className={`shelf-deck relative isolate w-full px-4 pt-8 z-10 ${mode === 'shelf'
-                  ? 'shelf-row flex items-end gap-6 sm:gap-10 lg:gap-14 pb-2 overflow-x-auto no-scrollbar'
-                  : 'grid place-content-center pb-[4.25rem] overflow-x-clip'}`}
+                  ? 'shelf-row flex items-end gap-6 sm:gap-10 lg:gap-14 pb-[4.25rem] overflow-x-auto no-scrollbar'
+                  : `grid place-content-center overflow-x-clip ${mode === 'fan' ? 'shelf-fan' : 'pb-[4.25rem]'}`}`}
               >
                 {displayedAlbums.map(({ album }, index) => (
                   <ThreeDimensionalBook
                     key={album.id}
                     album={album}
                     displayMode={mode}
-                    stackIndex={index}
-                    totalStacked={displayedAlbums.length}
+                    index={index}
+                    total={displayedAlbums.length}
                     onOpen={() => onSelectAlbum(album)}
                     onPlay={() => onPlayAlbum(album)}
                     sortControls={sortControls(album, index)}
@@ -460,7 +474,9 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
 
           {/* Solid Architectural Shelf Beam Plinth */}
           {mode !== 'search' && (
-            <div className="w-full max-w-5xl lg:max-w-[calc(100%-4rem)] relative mt-4 h-[4.5rem]">
+            <div className={`w-full max-w-5xl lg:max-w-[calc(100%-4rem)] relative ${
+              mode === 'fan' ? (pageCount > 1 ? 'mt-4 h-9' : 'h-0') : 'mt-4 h-[4.5rem]'
+            }`}>
               <div aria-hidden="true" className={`transition-[opacity,transform] duration-500 motion-reduce:transition-none ${
                 mode === 'shelf' ? 'opacity-100' : 'translate-y-2 opacity-0'
               }`}>
@@ -487,19 +503,19 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
                   }`}
                 />
               </div>
-              {mode === 'stacked' && stackPageCount > 1 && (
-                <motion.nav aria-label="画册叠放分页"
+              {(mode === 'stacked' || mode === 'fan') && pageCount > 1 && (
+                <motion.nav aria-label="画册分页"
                   initial={reduceMotion ? false : { opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: reduceMotion ? 0 : 0.2 }}
                   className="absolute inset-x-0 top-1 z-20 flex items-center justify-center gap-3 text-xs">
                   {([-1, 1] as const).map((direction) => {
-                    const page = stackPage + direction;
+                    const page = shelfPage + direction;
                     return (
                       <React.Fragment key={direction}>
-                        {direction > 0 && <span>{stackPage + 1} / {stackPageCount}</span>}
-                        <button type="button" disabled={page < 0 || page >= stackPageCount}
-                          onClick={() => slideTo('stacked', page, () => onStackPageChange(page), direction)}
+                        {direction > 0 && <span aria-live="polite">{shelfPage + 1} / {pageCount}</span>}
+                        <button type="button" disabled={page < 0 || page >= pageCount}
+                          onClick={() => slideTo(mode, page, () => onShelfPageChange(page), direction)}
                           className={`${toolbarButton} disabled:opacity-40`}>
                           {direction < 0 ? '上一组' : '下一组'}
                         </button>

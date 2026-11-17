@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useLayoutEffect, useMe
 import { useReducedMotion } from 'framer-motion';
 import { Minimize2 } from 'lucide-react';
 import { LOCAL_ARCHIVE } from './data/vaultData';
-import { Album, Track, ViewMode, ThemeMode, ShelfDisplayMode } from './types';
+import { Album, Track, ViewMode, ThemeMode, shelfDisplayModes } from './types';
 import { moveCover } from './coverTransition';
 import { useSyncedVideo } from './useSyncedVideo';
 import { BookshelfView } from './components/BookshelfView';
@@ -15,7 +15,6 @@ import { usePlayback } from './usePlayback';
 
 const albumIds = new Set(LOCAL_ARCHIVE.map((album) => album.id));
 const trackIndex = new Map(LOCAL_ARCHIVE.flatMap((album) => album.tracks.map((track) => [track.id, { album, track }] as const)));
-const shelfModes: ShelfDisplayMode[] = ['shelf', 'stacked'];
 
 export const App: React.FC = () => {
   const [albumOrder, setAlbumOrder] = useState(() => knownIds(readPreference('arc_shelf_order'), albumIds));
@@ -33,7 +32,7 @@ export const App: React.FC = () => {
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
-  const [stackPage, setStackPage] = useState(0);
+  const [shelfPage, setShelfPage] = useState(0);
   const [selectedAlbum, setSelectedAlbum] = useState<Album>(LOCAL_ARCHIVE[0]);
   const [currentView, setCurrentView] = useState<ViewMode>('shelf');
   const [stageMedia, setStageMedia] = useState<'image' | 'video'>('image');
@@ -43,7 +42,7 @@ export const App: React.FC = () => {
   const [bookClosing, setBookClosing] = useState(false);
   const [shelfDisplayMode, setShelfDisplayMode] = useState(() => {
     const saved = readPreference('arc_shelf_display');
-    return shelfModes.find((mode) => mode === saved) ?? 'shelf';
+    return shelfDisplayModes.find((mode) => mode === saved) ?? 'fan';
   });
   const [theme, setTheme] = useState<ThemeMode>(() => {
     if (typeof window !== 'undefined') {
@@ -333,8 +332,8 @@ export const App: React.FC = () => {
               search={search}
               searchOpen={searchOpen}
               onSearchOpenChange={setSearchOpen}
-              stackPage={stackPage}
-              onStackPageChange={setStackPage}
+              shelfPage={shelfPage}
+              onShelfPageChange={setShelfPage}
               onSearch={(value) => {
                 setSearch(value);
                 shelfScroll.current = 0;

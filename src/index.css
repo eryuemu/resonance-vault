@@ -262,12 +262,18 @@ html[data-vault-transition='stack-return']::view-transition-new(vault-cover) {
   justify-content: safe center;
 }
 
+.shelf-book-slot {
+  --shelf-book-width: calc(clamp(12rem, 22.5vw, 20.25rem) * var(--book-width-scale, 1));
+  z-index: var(--book-layer);
+  transform-origin: top left;
+}
+
 .shelf-book {
   --book-depth: clamp(17px, 2.2vw, 28px);
   --book-cloth: #312822;
   --book-paper-edge: repeating-linear-gradient(90deg, #a7977e 0 1px, #d8cbb1 1px 3px, #bcac90 3px 4px);
   position: relative;
-  width: calc(clamp(12rem, 22.5vw, 20.25rem) * var(--book-width-scale, 1));
+  width: var(--shelf-book-width);
   aspect-ratio: 3 / 4.25;
 }
 
@@ -552,6 +558,21 @@ html[data-vault-transition='stack-return']::view-transition-new(vault-cover) {
   color: #f5f2ea;
   text-shadow: 0 1px 3px rgba(12, 10, 8, 0.8);
   font-weight: 400;
+}
+
+.shelf-fan {
+  padding-inline: 1rem;
+  padding-top: clamp(1rem, 2.5vw, 2.5rem);
+  padding-bottom: clamp(3rem, 5vw, 4.5rem);
+  overflow-x: clip;
+}
+
+.shelf-book-slot[data-fan-book] {
+  --shelf-book-width: min(calc(clamp(12rem, 22.5vw, 20.25rem) * var(--book-width-scale, 1)), 96cqi / var(--fan-span, 2.8));
+}
+
+[data-fan-book]:has(:focus-visible) {
+  z-index: 51;
 }
 
 .folio-leaf {

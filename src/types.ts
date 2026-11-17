@@ -19,6 +19,7 @@ export interface Album {
   studio: string;
   artwork: string;
   aspectRatio: 'portrait' | 'landscape';
+  artworkPosition?: string;
   dimensions: string;
   description: string;
   videoUrl?: string;
@@ -27,7 +28,8 @@ export interface Album {
 }
 
 export type ViewMode = 'shelf' | 'spread' | 'stage';
-export type ShelfDisplayMode = 'shelf' | 'stacked';
+export const shelfDisplayModes = ['shelf', 'stacked', 'fan'] as const;
+export type ShelfDisplayMode = (typeof shelfDisplayModes)[number];
 export type ThemeMode = 'dark' | 'light';
 export type VideoStatus = 'loading' | 'ready' | 'error';
 export type PlaybackMode = 'all' | 'album' | 'one' | 'shuffle';
