@@ -25,7 +25,7 @@ interface BookshelfViewProps {
   onSelectAlbum: (album: Album) => void;
 }
 
-const pageSizes = { stacked: 4, fan: 5 };
+const pageSizes = { stacked: 8, fan: 5 };
 const searchPageSize = 40;
 
 export const BookshelfView: React.FC<BookshelfViewProps> = ({
@@ -189,7 +189,7 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
                 isDark ? 'text-[#a2a4b3]' : 'text-[#6e7080]'
               }`}
             >
-              RESONANCE ARCHIVE // 离线典藏馆
+              RESONANCE ARCHIVE
             </span>
             <span
               className={`hidden sm:inline-block text-xs font-mono ml-1 px-2 py-0.5 rounded-full border ${

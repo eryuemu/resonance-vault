@@ -263,7 +263,8 @@ html[data-vault-transition='stack-return']::view-transition-new(vault-cover) {
 }
 
 .shelf-book-slot {
-  --shelf-book-width: calc(clamp(12rem, 22.5vw, 20.25rem) * var(--book-width-scale, 1));
+  --shelf-book-base-width: calc(clamp(12rem, 22.5vw, 20.25rem) * var(--book-width-scale, 1));
+  --shelf-book-width: var(--shelf-book-base-width);
   z-index: var(--book-layer);
   transform-origin: top left;
 }
@@ -568,10 +569,17 @@ html[data-vault-transition='stack-return']::view-transition-new(vault-cover) {
 }
 
 .shelf-book-slot[data-fan-book] {
-  --shelf-book-width: min(calc(clamp(12rem, 22.5vw, 20.25rem) * var(--book-width-scale, 1)), 96cqi / var(--fan-span, 2.8));
+  --shelf-book-width: min(var(--shelf-book-base-width), 96cqi / var(--fan-span, 2.8));
 }
 
-[data-fan-book]:has(:focus-visible) {
+.shelf-book-slot[data-stacked-book] {
+  --shelf-book-width: min(var(--shelf-book-base-width), max(6rem, 100cqi - 1.5rem * var(--stack-intervals)));
+  --stack-step: clamp(0px, (100cqi - var(--shelf-book-width)) / var(--stack-intervals), var(--shelf-book-width) * 0.32);
+  left: calc(var(--stack-step) * var(--stack-offset));
+  top: calc(var(--shelf-book-width) * var(--stack-offset) * 0.028);
+}
+
+:is([data-fan-book], [data-stacked-book]):has(:focus-visible) {
   z-index: 51;
 }
 

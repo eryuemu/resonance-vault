@@ -105,10 +105,10 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
   const slotStyle = {
     '--fan-span': fan ? Math.max(2, (total - 1) * fanSpacing + 1.25) : undefined,
     '--book-layer': bookLayer,
-    left: fan ? `calc(var(--shelf-book-width) * ${offset * fanSpacing})`
-      : stacked ? `calc(clamp(10px, (100cqi - 12rem) / 3, 23%) * ${offset})` : undefined,
-    top: fan ? `calc(var(--shelf-book-width) * ${Math.pow(Math.abs(offset), 2) * 0.012})`
-      : stacked ? index * 8 : undefined
+    '--stack-offset': stacked ? offset : undefined,
+    '--stack-intervals': stacked ? Math.max(1, total - 1) : undefined,
+    left: fan ? `calc(var(--shelf-book-width) * ${offset * fanSpacing})` : undefined,
+    top: fan ? `calc(var(--shelf-book-width) * ${Math.pow(Math.abs(offset), 2) * 0.012})` : undefined
   } as React.CSSProperties;
 
   return (
@@ -118,6 +118,7 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
       data-shelf-slot={album.id}
       data-sort-album={sortControls ? album.id : undefined}
       data-fan-book={fan || undefined}
+      data-stacked-book={stacked || undefined}
       style={slotStyle}
       className={`shelf-book-slot relative flex shrink-0 flex-col items-center select-none ${dropClass} ${stacked || fan ? 'col-start-1 row-start-1' : ''}`}
     >
@@ -129,7 +130,6 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
         }}
         animate={{
           rotateZ: rotation,
-          x: `${stacked && hovering ? offset * 12.65 : 0}%`,
           y: hovering ? (fan ? -22 : stacked ? -15 : -10) : 0,
           scale: hovering ? (fan ? 1.03 : stacked ? 1.02 : 1) : 1
         }}
