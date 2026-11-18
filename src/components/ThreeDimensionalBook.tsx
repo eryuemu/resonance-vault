@@ -35,6 +35,9 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
   const reduceMotion = useReducedMotion();
   const stacked = displayMode === 'stacked';
   const fan = displayMode === 'fan';
+  const cascade = displayMode === 'cascade';
+  const overlapping = displayMode !== 'shelf';
+  const offset = index - (total - 1) / 2;
 
   // Mouse tilt physics with spring smoothing
   const x = useMotionValue(0);
@@ -43,10 +46,11 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
   const mouseXSpring = useSpring(x, { stiffness: 220, damping: 20 });
   const mouseYSpring = useSpring(y, { stiffness: 220, damping: 20 });
 
-  const baseRestingRotateX = stacked || fan ? 4 : 0;
-  const baseRestingRotateY = stacked ? -12 : fan ? -10 : index === 0 ? -9 : index === total - 1 ? -4 : -6;
+  const baseRestingRotateX = cascade ? -30 : overlapping ? 4 : 0;
+  const shelfRotateY = index === 0 ? -9 : index === total - 1 ? -4 : -6;
+  const baseRestingRotateY = cascade ? -6 + offset * 3 : stacked ? -12 : fan ? -10 : shelfRotateY;
   const hovering = isHovered && !reduceMotion;
-  const pointerTilt = stacked ? 0 : fan ? (hovering ? 0.35 : 0) : 1;
+  const pointerTilt = overlapping ? (hovering && !stacked ? 0.35 : 0) : 1;
   const restingRotateX = useSpring(baseRestingRotateX, { stiffness: 170, damping: 24 });
   const restingRotateY = useSpring(baseRestingRotateY, { stiffness: 170, damping: 24 });
   const tiltStrength = useSpring(pointerTilt, { stiffness: 170, damping: 24 });
@@ -89,24 +93,26 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
     y.set(0);
   };
 
-  const offset = index - (total - 1) / 2;
   const fanSpacing = 0.58;
 
   // Symmetrical fan angle fanning out from center
   const fanAngle = offset * 6.5;
   // On hover, book straightens slightly towards vertical
-  const rotation = fan ? (hovering ? fanAngle * 0.25 : fanAngle) : stacked && !hovering ? stackRotations[index % stackRotations.length] : 0;
+  const rotation = fan ? (hovering ? fanAngle * 0.25 : fanAngle)
+    : cascade ? offset * 3
+    : stacked && !hovering ? stackRotations[index % stackRotations.length] : 0;
 
   // Stacking order: center books in front, outer books tuck behind; hovered book leaps to topmost (z: 50)
   const centerDistance = Math.abs(offset);
   const fanBaseLayer = Math.round(35 - centerDistance * 4) + (offset > 0 ? 1 : 0);
-  const bookLayer = hovering ? 50 : fan ? fanBaseLayer : 10 + index;
+  const bookLayer = hovering ? 50 : fan ? fanBaseLayer : cascade ? 25 - index : 10 + index;
 
   const slotStyle = {
     '--fan-span': fan ? Math.max(2, (total - 1) * fanSpacing + 1.25) : undefined,
     '--book-layer': bookLayer,
     '--stack-offset': stacked ? offset : undefined,
     '--stack-intervals': stacked ? Math.max(1, total - 1) : undefined,
+    '--cascade-offset': cascade ? offset : undefined,
     left: fan ? `calc(var(--shelf-book-width) * ${offset * fanSpacing})` : undefined,
     top: fan ? `calc(var(--shelf-book-width) * ${Math.pow(Math.abs(offset), 2) * 0.012})` : undefined
   } as React.CSSProperties;
@@ -119,19 +125,18 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
       data-sort-album={sortControls ? album.id : undefined}
       data-fan-book={fan || undefined}
       data-stacked-book={stacked || undefined}
+      data-cascade-book={cascade || undefined}
       style={slotStyle}
-      className={`shelf-book-slot relative flex shrink-0 flex-col items-center select-none ${dropClass} ${stacked || fan ? 'col-start-1 row-start-1' : ''}`}
+      className={`shelf-book-slot relative flex shrink-0 flex-col items-center select-none ${dropClass} ${overlapping ? 'col-start-1 row-start-1' : ''}`}
     >
       <motion.div
         initial={false}
-        style={{
-          perspective: 1200,
-          transformOrigin: fan ? '50% 120%' : '50% 50%'
-        }}
+        style={{ perspective: 1200 }}
         animate={{
+          originY: fan ? 1.2 : 0.5,
           rotateZ: rotation,
-          y: hovering ? (fan ? -22 : stacked ? -15 : -10) : 0,
-          scale: hovering ? (fan ? 1.03 : stacked ? 1.02 : 1) : 1
+          y: hovering ? (fan ? -22 : overlapping ? -15 : -10) : 0,
+          scale: hovering ? (fan ? 1.03 : overlapping ? 1.02 : 1) : 1
         }}
         transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 220, damping: 28 }}
       >
@@ -182,7 +187,6 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
               <button
                 type="button"
                 className="shelf-book-trigger"
-                data-stack-landing={stacked || fan || undefined}
                 aria-label={`翻开《${album.title}》`}
                 onClick={onOpen}
               />
@@ -198,7 +202,7 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
         </motion.div>
       </motion.div>
 
-      {!stacked && !fan && (
+      {!overlapping && (
         <div className="absolute inset-x-0 top-full mt-5 flex h-10 items-center justify-center">
           {sortControls ?? <span className="max-w-48 truncate text-sm opacity-75">{album.artist}</span>}
         </div>

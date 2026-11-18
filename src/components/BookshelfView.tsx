@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Layers, Columns3, GalleryHorizontalEnd, Sun, Moon, Search, X, GripVertical, ChevronLeft, ChevronRight, Play, ArrowUpDown, Check } from 'lucide-react';
+import { Layers, Columns3, GalleryHorizontalEnd, TrendingUp, Sun, Moon, Search, X, GripVertical, ChevronLeft, ChevronRight, Play, ArrowUpDown, Check } from 'lucide-react';
 import { ThreeDimensionalBook } from './ThreeDimensionalBook';
 import { Album, ShelfDisplayMode, ThemeMode, Track } from '../types';
 import { useShelfDrag } from './useShelfDrag';
@@ -25,7 +25,7 @@ interface BookshelfViewProps {
   onSelectAlbum: (album: Album) => void;
 }
 
-const pageSizes = { stacked: 8, fan: 5 };
+const pageSizes = { stacked: 8, fan: 5, cascade: 5 };
 const searchPageSize = 40;
 
 export const BookshelfView: React.FC<BookshelfViewProps> = ({
@@ -64,7 +64,7 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
     });
   }, [albums, query]);
   const mode = query ? 'search' : displayMode;
-  const pageSize = mode === 'stacked' || mode === 'fan' ? pageSizes[mode] : 0;
+  const pageSize = mode === 'search' || mode === 'shelf' ? 0 : pageSizes[mode];
   const pageCount = pageSize ? Math.ceil(results.length / pageSize) : 0;
   const canSort = sorting && !query;
   const orderedResults = active
@@ -77,6 +77,7 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
     return orderedResults.slice(page * size, (page + 1) * size);
   };
   const displayedAlbums = albumsOnPage(displayMode, shelfPage);
+  const compactPlinth = mode === 'fan' || mode === 'cascade';
   const toolbarButton = 'archive-control inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1.5 text-xs sm:text-sm';
   const displayButton = (value: ShelfDisplayMode) =>
     `archive-control flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded px-1 sm:flex-none sm:px-2.5 py-1.5 aria-pressed:bg-[#c5a059]/15 ${displayMode === value ? 'font-semibold' : ''}`;
@@ -342,7 +343,8 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
             {([
               ['shelf', '立架并列', Columns3],
               ['stacked', '画册叠放', Layers],
-              ['fan', '扇形陈列', GalleryHorizontalEnd]
+              ['fan', '扇形陈列', GalleryHorizontalEnd],
+              ['cascade', '斜向陈列', TrendingUp]
             ] as const).map(([value, label, Icon]) => (
               <button
                 key={value}
@@ -360,7 +362,7 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
                 })}
                 className={displayButton(value)}
               >
-                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <Icon className="hidden h-4 w-4 shrink-0 min-[380px]:block" aria-hidden="true" />
                 <span className="text-xs sm:text-sm">{label}</span>
               </button>
             ))}
@@ -380,7 +382,7 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
 
       {/* Main Exhibition Hall Stage (Books Centerpiece) */}
         <section aria-label="典藏书架" data-shelf-mode={mode}
-          className={`my-auto py-6 md:py-8 flex flex-col items-center justify-center relative ${
+          className={`my-auto flex flex-col items-center justify-center relative ${mode === 'cascade' ? 'py-2' : 'py-6 md:py-8'} ${
           mode === 'search' ? '!mt-0 w-full' : 'lg:w-[min(93.5rem,calc(100vw-3rem))] lg:self-center'
         }`}>
           {/* Soft overhead gallery spotlight gradient */}
@@ -442,9 +444,10 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
           ) : (
             <>
               <div ref={rowRef} data-shelf-scroll={mode === 'shelf' ? '' : undefined} onScroll={updateScrollEdges}
+                style={mode === 'cascade' ? { '--cascade-intervals': Math.max(0, displayedAlbums.length - 1) } as React.CSSProperties : undefined}
                 className={`shelf-deck relative isolate w-full px-4 pt-8 z-10 ${mode === 'shelf'
                   ? 'shelf-row flex items-end gap-6 sm:gap-10 lg:gap-14 pb-[4.25rem] overflow-x-auto no-scrollbar'
-                  : `grid place-content-center overflow-x-clip ${mode === 'fan' ? 'shelf-fan' : 'pb-[4.25rem]'}`}`}
+                  : `grid place-content-center overflow-x-clip ${mode === 'fan' ? 'shelf-fan' : mode === 'cascade' ? 'shelf-cascade' : 'pb-[4.25rem]'}`}`}
               >
                 {displayedAlbums.map(({ album }, index) => (
                   <ThreeDimensionalBook
@@ -475,7 +478,7 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
           {/* Solid Architectural Shelf Beam Plinth */}
           {mode !== 'search' && (
             <div className={`w-full max-w-5xl lg:max-w-[calc(100%-4rem)] relative ${
-              mode === 'fan' ? (pageCount > 1 ? 'mt-4 h-9' : 'h-0') : 'mt-4 h-[4.5rem]'
+              compactPlinth ? (pageCount > 1 ? 'mt-4 h-9' : 'h-0') : 'mt-4 h-[4.5rem]'
             }`}>
               <div aria-hidden="true" className={`transition-[opacity,transform] duration-500 motion-reduce:transition-none ${
                 mode === 'shelf' ? 'opacity-100' : 'translate-y-2 opacity-0'
@@ -503,7 +506,7 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
                   }`}
                 />
               </div>
-              {(mode === 'stacked' || mode === 'fan') && pageCount > 1 && (
+              {pageCount > 1 && (
                 <motion.nav aria-label="画册分页"
                   initial={reduceMotion ? false : { opacity: 0 }}
                   animate={{ opacity: 1 }}

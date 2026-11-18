@@ -3,7 +3,7 @@ import { useReducedMotion } from 'framer-motion';
 import { Minimize2 } from 'lucide-react';
 import { LOCAL_ARCHIVE } from './data/vaultData';
 import { Album, Track, ViewMode, ThemeMode, shelfDisplayModes } from './types';
-import { moveCover } from './coverTransition';
+import { moveBookToShelf, moveCover, type CoverReversal } from './coverTransition';
 import { useSyncedVideo } from './useSyncedVideo';
 import { BookshelfView } from './components/BookshelfView';
 import { BookSpreadView } from './components/BookSpreadView';
@@ -64,6 +64,7 @@ export const App: React.FC = () => {
   const shelfScroll = useRef(0);
   const shelfEntry = useRef('');
   const transitionDestination = useRef<ViewMode | null>(null);
+  const openingFlight = useRef<AbortController | null>(null);
   const returnFromStageQueued = useRef(false);
   const reduceMotion = useReducedMotion();
   const playingVideoUrl = playingAlbum.tracks[0]?.id === currentTrack.id ? playingAlbum.videoUrl : undefined;
@@ -132,7 +133,7 @@ export const App: React.FC = () => {
     };
   }, [isPvFocus]);
 
-  const navigate = useCallback(async (to: ViewMode, fromCover: string, toCover: string, update?: () => void) => {
+  const navigate = useCallback(async (to: ViewMode, fromCover: string, toCover: string, update?: () => void, reversal?: CoverReversal) => {
     if (transitionDestination.current) return false;
     transitionDestination.current = to;
 
@@ -143,25 +144,43 @@ export const App: React.FC = () => {
     if (shelf) shelfScroll.current = shelf.scrollLeft;
 
     try {
-      await moveCover(fromCover, toCover, () => {
+      const commitView = () => {
         update?.();
         setCurrentView(to);
-      }, !!reduceMotion);
-      return true;
+      };
+      if (to === 'shelf' && toCover.startsWith('shelf-') && !search.trim()) {
+        await moveBookToShelf(fromCover, toCover, commitView, !!reduceMotion, shelfDisplayMode);
+      } else {
+        await moveCover(fromCover, toCover, commitView, !!reduceMotion, reversal);
+      }
+      return !reversal?.signal.aborted;
     } finally {
       transitionDestination.current = null;
     }
-  }, [reduceMotion]);
+  }, [reduceMotion, search, shelfDisplayMode]);
 
   const openBook = async (album: Album, source = `shelf-${album.id}`) => {
-    const moved = await navigate('spread', source, 'folio-cover', () => {
-      shelfEntry.current = source;
-      viewScroll.current.spread = 0;
-      setSelectedAlbum(album);
-      setBookOpening('waiting');
-      setBookClosing(false);
-    });
-    if (moved) setBookOpening('opening');
+    if (transitionDestination.current) return;
+    const controller = new AbortController();
+    openingFlight.current = controller;
+    try {
+      const moved = await navigate('spread', source, 'folio-cover', () => {
+        shelfEntry.current = source;
+        viewScroll.current.spread = 0;
+        setSelectedAlbum(album);
+        setBookOpening('waiting');
+        setBookClosing(false);
+      }, {
+        signal: controller.signal,
+        restore: () => {
+          setBookOpening(null);
+          setCurrentView('shelf');
+        }
+      });
+      if (moved) setBookOpening('opening');
+    } finally {
+      openingFlight.current = null;
+    }
   };
 
   const returnToShelf = useCallback(() => {
@@ -227,6 +246,11 @@ export const App: React.FC = () => {
           setPvFocusEnabled(false);
           return;
         }
+        if (openingFlight.current) {
+          e.preventDefault();
+          openingFlight.current.abort();
+          return;
+        }
         if (currentView === 'stage') {
           returnToSpread();
           return;
@@ -281,7 +305,7 @@ export const App: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleTogglePlay, currentView, isPvFocus, returnToSpread, audioRef, playback]);
+  }, [handleTogglePlay, currentView, isPvFocus, queueOpen, returnToSpread, audioRef, playback]);
 
   const isDark = theme === 'dark';
 

@@ -28,7 +28,7 @@ export interface Album {
 }
 
 export type ViewMode = 'shelf' | 'spread' | 'stage';
-export const shelfDisplayModes = ['shelf', 'stacked', 'fan'] as const;
+export const shelfDisplayModes = ['shelf', 'stacked', 'fan', 'cascade'] as const;
 export type ShelfDisplayMode = (typeof shelfDisplayModes)[number];
 export type ThemeMode = 'dark' | 'light';
 export type VideoStatus = 'loading' | 'ready' | 'error';

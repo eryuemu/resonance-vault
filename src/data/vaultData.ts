@@ -225,5 +225,70 @@ export const LOCAL_ARCHIVE: Album[] = [
         audioUrl: '/albums/luo_xiadengma/洛天依 - 下等马.m4a'
       }
     ]
+  },
+  {
+    id: 'kachou-fuugetsu',
+    catalogNumber: 'CAT. YS-2020-KACHOU',
+    title: '華鳥風月',
+    subtitle: '幽闭星光 · Senya 版官方 MV',
+    artist: 'Senya / 幽闭星光',
+    releaseDate: '2020 年 3 月',
+    publisher: '幽闭星光',
+    studio: '满福神社',
+    artwork: '/albums/kachou_fuugetsu/cover.jpg',
+    videoUrl: '/albums/kachou_fuugetsu/原版PV.mp4',
+    aspectRatio: 'landscape',
+    dimensions: '1000 × 625',
+    description: '《幻想万华镜 花の異変の章》的片头主题曲。这一版由 Senya 演唱，完整版 MV 使用满福神社的动画画面。',
+    credits: [
+      { label: '演唱', value: 'Senya' },
+      { label: '作词 / 编曲', value: 'かませ虎 / Iceon' },
+      { label: '原曲', value: '六十年目の東方裁判 ～ Fate of Sixty Years' },
+      { label: '动画制作', value: '满福神社' },
+      { label: '投稿来源', value: '幽闭星光_Official · BV1HK411L7Yh' }
+    ],
+    tracks: [
+      {
+        id: 'kachou-fuugetsu-01',
+        trackNumber: 1,
+        title: '華鳥風月',
+        artist: 'Senya',
+        composer: 'ZUN',
+        duration: '05:56',
+        audioUrl: '/albums/kachou_fuugetsu/華鳥風月.m4a'
+      }
+    ]
+  },
+  {
+    id: 'luo-starting-line',
+    catalogNumber: 'CAT. VC-2012-START',
+    title: 'Starting Line',
+    subtitle: '洛天依 · VOCANOVA',
+    artist: '洛天依',
+    releaseDate: '2012 年 8 月',
+    publisher: 'VOCALOID CHINA',
+    studio: 'VOCANOVA',
+    artwork: '/albums/luo_starting_line/cover.jpg',
+    videoUrl: '/albums/luo_starting_line/原版PV.mp4',
+    aspectRatio: 'landscape',
+    dimensions: '720 × 405',
+    description: '洛天依演唱的《VOCANOVA》曲目。本藏品收录的是 B 站补档版，投稿注明原视频于 2012 年 8 月 25 日发布在新浪视频。',
+    credits: [
+      { label: '演唱', value: '洛天依' },
+      { label: '作曲', value: 'G.K' },
+      { label: '原视频', value: '新浪视频 · 84269611' },
+      { label: '补档来源', value: '命令方块好方-BH6BMJ · BV1qN8w6kEVt' }
+    ],
+    tracks: [
+      {
+        id: 'starting-line-01',
+        trackNumber: 1,
+        title: 'Starting Line',
+        artist: '洛天依',
+        composer: 'G.K',
+        duration: '02:32',
+        audioUrl: '/albums/luo_starting_line/Starting Line.m4a'
+      }
+    ]
   }
 ];

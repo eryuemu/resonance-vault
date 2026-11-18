@@ -231,30 +231,20 @@ html[data-vault-transition]::view-transition-new(root) {
   50%, 100% { opacity: 1; }
 }
 
-html[data-vault-transition='stack-return']::view-transition-old(vault-cover) {
-  animation: vault-stack-cover-out var(--vault-cover-duration) linear both;
+[data-shelf-return-target] {
+  opacity: 0;
 }
 
-html[data-vault-transition='stack-return']::view-transition-new(vault-cover) {
-  display: none;
-}
-
-[data-stack-return-cover] {
-  animation: vault-stack-cover-in var(--vault-cover-duration) linear both;
-}
-
-@keyframes vault-stack-cover-out {
-  0%, 75% { opacity: 1; }
-  100% { opacity: 0; }
-}
-
-@keyframes vault-stack-cover-in {
-  0%, 62% { opacity: 0; }
-  82%, 100% { opacity: 1; }
+[data-shelf-return-flight] {
+  position: fixed;
+  z-index: 60;
+  pointer-events: none;
+  transform-origin: top left;
 }
 
 .shelf-deck {
   --book-width-scale: 0.95;
+  --shelf-book-base-width: calc(clamp(12rem, 22.5vw, 20.25rem) * var(--book-width-scale, 1));
   container-type: inline-size;
 }
 
@@ -263,7 +253,6 @@ html[data-vault-transition='stack-return']::view-transition-new(vault-cover) {
 }
 
 .shelf-book-slot {
-  --shelf-book-base-width: calc(clamp(12rem, 22.5vw, 20.25rem) * var(--book-width-scale, 1));
   --shelf-book-width: var(--shelf-book-base-width);
   z-index: var(--book-layer);
   transform-origin: top left;
@@ -579,7 +568,27 @@ html[data-vault-transition='stack-return']::view-transition-new(vault-cover) {
   top: calc(var(--shelf-book-width) * var(--stack-offset) * 0.028);
 }
 
-:is([data-fan-book], [data-stacked-book]):has(:focus-visible) {
+.shelf-cascade {
+  /* Reduce the rise on short screens while keeping the covers at full size. */
+  --cascade-rise: clamp(
+    2.25rem,
+    (100svh - 16rem - var(--shelf-book-base-width) * 4.25 / 3) / max(1, var(--cascade-intervals)),
+    min(var(--shelf-book-base-width) * 0.38, 5.75rem)
+  );
+  padding-block: calc(1.25rem + var(--cascade-rise) * var(--cascade-intervals) / 2);
+}
+
+.shelf-book-slot[data-cascade-book] {
+  --cascade-run: clamp(0px, (100cqi - var(--shelf-book-width) - 0.5rem) / max(1, var(--cascade-intervals)), var(--shelf-book-width) * 0.78);
+  left: calc(var(--cascade-offset) * var(--cascade-run));
+  top: calc(var(--cascade-offset) * var(--cascade-rise) * -1);
+}
+
+@media (max-width: 639px) {
+  .shelf-cascade { --cascade-rise: clamp(2rem, 5svh, 2.75rem); }
+}
+
+:is([data-fan-book], [data-stacked-book], [data-cascade-book]):has(:focus-visible) {
   z-index: 51;
 }
 
