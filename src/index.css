@@ -404,6 +404,13 @@ html[data-vault-transition]::view-transition-new(root) {
   backface-visibility: hidden;
 }
 
+.folio-page--left[data-frame-window] {
+  /* Subtract the opening from the whole page, including the frame mat and record. */
+  mask: linear-gradient(#000 0 0) no-clip,
+    linear-gradient(#000 0 0) var(--frame-window-position) / var(--frame-window-size) no-repeat;
+  mask-composite: exclude;
+}
+
 .folio-page--right {
   grid-area: 2 / 1;
   margin-top: 21px;

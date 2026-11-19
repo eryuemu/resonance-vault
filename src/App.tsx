@@ -37,6 +37,7 @@ export const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewMode>('shelf');
   const [stageMedia, setStageMedia] = useState<'image' | 'video'>('image');
   const [pvBackgroundEnabled, setPvBackgroundEnabled] = useState(() => readPreference('arc_pv_background') === true);
+  const [folioPvEnabled, setFolioPvEnabled] = useState(() => readPreference('arc_folio_pv') === true);
   const [pvFocusEnabled, setPvFocusEnabled] = useState<false | 'keyboard' | 'pointer'>(false);
   const [bookOpening, setBookOpening] = useState<'waiting' | 'opening' | null>(null);
   const [bookClosing, setBookClosing] = useState(false);
@@ -74,11 +75,13 @@ export const App: React.FC = () => {
   const isStageVideoMode = stageMedia === 'video' && !!stageVideoUrl && stageVideoUrl === backgroundVideoUrl;
   const videoStatus = useSyncedVideo(audioRef, videoRef, backgroundVideoUrl);
   const isBackgroundVisible = !!backgroundVideoUrl && videoStatus === 'ready';
+  const folioPvStatus = folioPvEnabled && backgroundVideoUrl ? videoStatus : undefined;
   const isPvFocus = !!pvFocusEnabled && isBackgroundVisible;
 
   useEffect(() => writePreference('arc_shelf_order', albumOrder), [albumOrder]);
   useEffect(() => writePreference('arc_shelf_display', shelfDisplayMode), [shelfDisplayMode]);
   useEffect(() => writePreference('arc_pv_background', pvBackgroundEnabled), [pvBackgroundEnabled]);
+  useEffect(() => writePreference('arc_folio_pv', folioPvEnabled), [folioPvEnabled]);
   useEffect(() => () => clearTimeout(noticeTimer.current), []);
 
   const report = (message: string) => {
@@ -217,14 +220,28 @@ export const App: React.FC = () => {
     });
   };
 
+  const playSelectedAlbumPv = () => {
+    const videoTrack = selectedAlbum.videoUrl ? selectedAlbum.tracks[0] : undefined;
+    if (!videoTrack) return;
+    if (currentTrack.id !== videoTrack.id || !playback.isPlaying) playTrack(videoTrack);
+  };
+
   const handleStageMediaChange = (media: 'image' | 'video') => {
     if (media === 'video') {
-      const videoTrack = stageVideoUrl ? selectedAlbum.tracks[0] : undefined;
-      if (!videoTrack) return;
-      if (currentTrack.id !== videoTrack.id || !playback.isPlaying) playTrack(videoTrack);
+      playSelectedAlbumPv();
       setPvBackgroundEnabled(true);
     }
     setStageMedia(media);
+  };
+
+  const toggleFolioPv = () => {
+    if (folioPvStatus) {
+      setFolioPvEnabled(false);
+      return;
+    }
+    if (!playingVideoUrl) playSelectedAlbumPv();
+    setPvBackgroundEnabled(true);
+    setFolioPvEnabled(true);
   };
 
   const togglePvBackground = () => {
@@ -388,6 +405,8 @@ export const App: React.FC = () => {
               theme={theme}
               opening={bookOpening}
               closing={bookClosing}
+              framePvStatus={folioPvStatus}
+              onToggleFolioPv={playingVideoUrl || selectedAlbum.videoUrl ? toggleFolioPv : undefined}
               onToggleTheme={toggleTheme}
               onPlayTrack={togglePlayTrack}
               onOpenStage={openStage}

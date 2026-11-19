@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { animate, motion, useMotionValue, useReducedMotion, useTransform } from 'framer-motion';
 import type { MotionStyle } from 'framer-motion';
-import { Eye, ArrowLeft, Disc, Sun, Moon, Play } from 'lucide-react';
-import { Album, Track, ThemeMode } from '../types';
+import { Eye, ArrowLeft, Disc, Film, Sun, Moon, Play } from 'lucide-react';
+import { Album, Track, ThemeMode, VideoStatus } from '../types';
 import { HardcoverArtwork } from './HardcoverArtwork';
 import { TurningLeaf } from './TurningLeaf';
 
@@ -13,6 +13,8 @@ interface BookSpreadViewProps {
   theme: ThemeMode;
   opening: 'waiting' | 'opening' | null;
   closing: boolean;
+  framePvStatus?: VideoStatus;
+  onToggleFolioPv?: () => void;
   onToggleTheme: () => void;
   onPlayTrack: (track: Track) => void;
   onOpenStage: () => void;
@@ -27,6 +29,8 @@ export const BookSpreadView: React.FC<BookSpreadViewProps> = ({
   theme,
   opening,
   closing,
+  framePvStatus,
+  onToggleFolioPv,
   onToggleTheme,
   onPlayTrack,
   onOpenStage,
@@ -36,7 +40,10 @@ export const BookSpreadView: React.FC<BookSpreadViewProps> = ({
   const isDark = theme === 'dark';
   const reduceMotion = useReducedMotion();
   const viewRef = useRef<HTMLDivElement>(null);
+  const leftPageRef = useRef<HTMLDivElement>(null);
+  const artworkRef = useRef<HTMLButtonElement>(null);
   const [opened, setOpened] = useState(!opening || !!reduceMotion);
+  const showFrameWindow = opened && !closing && framePvStatus === 'ready';
   const progress = useMotionValue(opening && !reduceMotion ? 0 : 1);
   const coverAngle = useTransform(progress, [0, 0.18, 0.47, 0.75, 0.9, 1], ['180deg', '150deg', '55deg', '3deg', '-1.4deg', '0deg']);
   const mobileCoverAngle = useTransform(progress, [0, 0.13, 0.47, 0.65, 1], ['0deg', '-13deg', '-89deg', '-115deg', '-115deg']);
@@ -71,6 +78,25 @@ export const BookSpreadView: React.FC<BookSpreadViewProps> = ({
     if (closing) viewRef.current?.closest('main')?.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
   }, [closing, reduceMotion]);
 
+  useLayoutEffect(() => {
+    const page = leftPageRef.current;
+    const artwork = artworkRef.current;
+    if (!showFrameWindow || !page || !artwork) return;
+
+    const positionWindow = () => {
+      const pageBounds = page.getBoundingClientRect();
+      const opening = artwork.getBoundingClientRect();
+      page.style.setProperty('--frame-window-position', `${opening.left - pageBounds.left}px ${opening.top - pageBounds.top}px`);
+      page.style.setProperty('--frame-window-size', `${opening.width}px ${opening.height}px`);
+    };
+
+    positionWindow();
+    const observer = new ResizeObserver(positionWindow);
+    observer.observe(page);
+    observer.observe(artwork);
+    return () => observer.disconnect();
+  }, [showFrameWindow]);
+
   // Check if current track belongs to this album
   const isCurrentAlbumActive = album.tracks.some((t) => t.id === currentTrack?.id);
   const isThisAlbumPlaying = isCurrentAlbumActive && isPlaying;
@@ -79,7 +105,7 @@ export const BookSpreadView: React.FC<BookSpreadViewProps> = ({
     <div ref={viewRef} className="my-auto px-4 sm:px-8 md:px-12 pt-3 pb-7 max-w-6xl mx-auto w-full select-none">
       {/* Top Quiet Navigation & Controls Header - COMPACT */}
       <div
-        className={`flex items-center justify-between mb-3 pb-2.5 border-b transition-colors ${
+        className={`mb-3 flex flex-wrap items-center justify-between gap-2 border-b pb-2.5 ${
           isDark ? 'border-[#1f212b]' : 'border-[#dedad0]'
         }`}
       >
@@ -97,10 +123,10 @@ export const BookSpreadView: React.FC<BookSpreadViewProps> = ({
           <span className="sm:hidden">返回书架</span>
         </button>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {/* Catalog Seal */}
           <span
-            className={`hidden min-[430px]:inline whitespace-nowrap text-xs font-mono font-medium tracking-wider px-2.5 py-1 rounded border ${
+            className={`${onToggleFolioPv ? 'hidden lg:inline' : 'hidden min-[430px]:inline'} whitespace-nowrap text-xs font-mono font-medium tracking-wider px-2.5 py-1 rounded border ${
               isDark
                 ? 'text-[#c5a059] border-[#c5a059]/30 bg-black/50'
                 : 'text-[#8a6a26] border-[#8a6a26]/30 bg-[#eae7de]'
@@ -111,7 +137,9 @@ export const BookSpreadView: React.FC<BookSpreadViewProps> = ({
 
           {/* 黑白主题切换按钮 (Monochrome Light/Dark Toggle) */}
           <button
+            type="button"
             onClick={onToggleTheme}
+            aria-label={isDark ? '白宣纸境' : '墨夜黑曜'}
             className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border text-xs md:text-sm font-serif transition-all cursor-pointer ${
               isDark
                 ? 'bg-[#14151b] hover:bg-[#20222a] text-[#dedbd2] border-[#252733]'
@@ -132,8 +160,26 @@ export const BookSpreadView: React.FC<BookSpreadViewProps> = ({
             )}
           </button>
 
-          {/* Exhibition Stage Button */}
+          {onToggleFolioPv && (
+            <button
+              type="button"
+              onClick={onToggleFolioPv}
+              disabled={closing || !opened}
+              aria-pressed={framePvStatus !== undefined}
+              title={framePvStatus === 'loading' ? '正在载入背景 PV…' : '相框透视'}
+              className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-2 py-1.5 font-serif text-xs transition-colors sm:px-3 md:text-sm ${
+                framePvStatus ? `border-[#c5a059]/60 bg-[#c5a059]/15 hover:bg-[#c5a059]/25 ${isDark ? 'text-[#f0d49b]' : 'text-[#795d27]'}`
+                  : isDark ? 'border-[#2e303d] bg-[#181a22] text-[#c5a059] hover:bg-[#232634]'
+                  : 'border-[#d4d0c5] bg-white text-[#795d27] hover:bg-[#eae8df]'
+              }`}
+            >
+              <Film className={`h-3.5 w-3.5 ${framePvStatus === 'loading' ? 'motion-safe:animate-pulse' : ''}`} aria-hidden="true" />
+              相框透视
+            </button>
+          )}
+
           <button
+            type="button"
             onClick={onOpenStage}
             disabled={closing || !opened}
             className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs md:text-sm font-serif border transition-all cursor-pointer ${
@@ -162,7 +208,11 @@ export const BookSpreadView: React.FC<BookSpreadViewProps> = ({
           } as MotionStyle}
         >
           <div className="folio-hinge">
-            <div className="folio-page folio-page--left flex flex-col items-center justify-center p-4 md:p-6">
+            <div
+              ref={leftPageRef}
+              data-frame-window={showFrameWindow || undefined}
+              className="folio-page folio-page--left flex flex-col items-center justify-center p-4 md:p-6"
+            >
               {/* Vinyl Record that slides out smoothly when playing */}
               <motion.div
                 initial={false}
@@ -224,17 +274,19 @@ export const BookSpreadView: React.FC<BookSpreadViewProps> = ({
                 }`}
               >
                 <button
+                  ref={artworkRef}
                   type="button"
                   className={`relative block w-full overflow-hidden rounded-xs bg-black group cursor-pointer ${
                     album.aspectRatio === 'landscape' ? 'aspect-video' : 'aspect-[3/4.25]'
                   }`}
                   onClick={onOpenStage}
-                  disabled={closing || !opened}
+                  disabled={closing || !opened || showFrameWindow}
+                  aria-hidden={showFrameWindow || undefined}
                   aria-label={`在纯享展台查看《${album.title}》原画`}
                   title="点击进入全屏纯享展台"
                 >
                   <img
-                    data-cover="folio-artwork"
+                    data-cover={showFrameWindow ? undefined : 'folio-artwork'}
                     src={album.artwork}
                     alt={album.title}
                     className="w-full h-full object-contain bg-black group-hover:scale-[1.02] transition-transform duration-500"
@@ -258,11 +310,9 @@ export const BookSpreadView: React.FC<BookSpreadViewProps> = ({
                   }`}
                 >
                   <span className="font-medium truncate mr-2">
-                    图版 I · 《{album.title}》原画特刊
+                    {showFrameWindow ? '背景 PV' : `图版 I · 《${album.title}》原画特刊`}
                   </span>
-                  <span className="flex-shrink-0 font-mono">
-                    {album.dimensions}
-                  </span>
+                  {!showFrameWindow && <span className="flex-shrink-0 font-mono">{album.dimensions}</span>}
                 </div>
               </div>
               <motion.div className="folio-turn-shadow folio-turn-shadow--left" style={{ opacity: leftPageShadow }} aria-hidden="true" />

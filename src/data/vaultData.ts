@@ -290,5 +290,38 @@ export const LOCAL_ARCHIVE: Album[] = [
         audioUrl: '/albums/luo_starting_line/Starting Line.m4a'
       }
     ]
+  },
+  {
+    id: 'luo-nanjing-night',
+    catalogNumber: 'CAT. HS-2025-NANJING',
+    title: '南京夜无电波讯号',
+    subtitle: '黑色磁带 · 洛天依原创',
+    artist: '洛天依 / 花水r',
+    releaseDate: '2025 年 7 月',
+    publisher: '花水r',
+    studio: '花水r',
+    artwork: '/albums/luo_nanjing_night/cover.jpg',
+    videoUrl: '/albums/luo_nanjing_night/原版PV.mp4',
+    aspectRatio: 'landscape',
+    dimensions: '1800 × 1012',
+    description: '「黑色磁带」The first song。由花水r制作，洛天依 Xs ver. 演唱，2025 年 7 月 18 日投稿，原投稿标注为告别作。本藏品收录投稿封面、音频与原版 PV。',
+    credits: [
+      { label: '演唱', value: '洛天依 · Xs ver.' },
+      { label: '制作', value: '花水r' },
+      { label: '收录企划', value: '黑色磁带' },
+      { label: '投稿日期', value: '2025-07-18' },
+      { label: '投稿来源', value: '花水r_Official · BV1NcuUzJESu' }
+    ],
+    tracks: [
+      {
+        id: 'nanjing-night-01',
+        trackNumber: 1,
+        title: '南京夜无电波讯号',
+        artist: '洛天依',
+        composer: '花水r',
+        duration: '02:58',
+        audioUrl: '/albums/luo_nanjing_night/南京夜无电波讯号.m4a'
+      }
+    ]
   }
 ];
