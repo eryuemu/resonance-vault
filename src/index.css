@@ -231,15 +231,61 @@ html[data-vault-transition]::view-transition-new(root) {
   50%, 100% { opacity: 1; }
 }
 
-[data-shelf-return-target] {
+html[data-vault-transition='shelf-return']::view-transition-old(vault-cover) {
+  animation: vault-landing-cover-out var(--vault-cover-duration) linear both;
+}
+
+html[data-vault-transition='shelf-return']::view-transition-new(vault-cover) {
+  display: none;
+}
+
+/* The destination trigger still supplies geometry while all painted faces wait for landing. */
+[data-vault-landing-book] .shelf-book::before,
+[data-vault-landing-book] :is(.shelf-book > div, [data-shelf-book-caption]) {
   opacity: 0;
 }
 
-[data-shelf-return-flight] {
+[data-vault-landing-book] .shelf-quick-play {
+  visibility: hidden;
+}
+
+[data-vault-landing-book='ready'] .shelf-book::before,
+[data-vault-landing-book='ready'] :is(.shelf-book > div, [data-shelf-book-caption]) {
+  animation: vault-landing-book-in var(--vault-cover-duration) linear both;
+}
+
+@keyframes vault-landing-cover-out {
+  0%, 88% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes vault-landing-book-in {
+  0%, 88% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+[data-vault-departing-book] .shelf-book::before,
+[data-vault-departing-book] .shelf-book > div:not(.shelf-book-cover),
+[data-vault-departing-book] [data-shelf-book-caption] {
+  visibility: hidden;
+}
+
+[data-vault-departing-book] .shelf-book > button,
+[data-vault-returning-book] .shelf-book > button {
+  visibility: hidden;
+}
+
+[data-vault-returning-book] > :first-child {
   position: fixed;
-  z-index: 60;
-  pointer-events: none;
-  transform-origin: top left;
+}
+
+html[data-vault-transition='frame-return']::view-transition-old(vault-cover) {
+  animation: vault-frame-cover-out var(--vault-cover-duration) linear both;
+}
+
+@keyframes vault-frame-cover-out {
+  0%, 75% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 .shelf-deck {
@@ -569,10 +615,7 @@ html[data-vault-transition]::view-transition-new(root) {
 }
 
 .shelf-book-slot[data-stacked-book] {
-  --shelf-book-width: min(var(--shelf-book-base-width), max(6rem, 100cqi - 1.5rem * var(--stack-intervals)));
-  --stack-step: clamp(0px, (100cqi - var(--shelf-book-width)) / var(--stack-intervals), var(--shelf-book-width) * 0.32);
-  left: calc(var(--stack-step) * var(--stack-offset));
-  top: calc(var(--shelf-book-width) * var(--stack-offset) * 0.028);
+  left: calc(clamp(10px, (100cqi - 12rem) / 3, 23%) * var(--stack-offset));
 }
 
 .shelf-cascade {
@@ -593,10 +636,6 @@ html[data-vault-transition]::view-transition-new(root) {
 
 @media (max-width: 639px) {
   .shelf-cascade { --cascade-rise: clamp(2rem, 5svh, 2.75rem); }
-}
-
-:is([data-fan-book], [data-stacked-book], [data-cascade-book]):has(:focus-visible) {
-  z-index: 51;
 }
 
 .folio-leaf {

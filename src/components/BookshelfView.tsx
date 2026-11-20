@@ -25,7 +25,7 @@ interface BookshelfViewProps {
   onSelectAlbum: (album: Album) => void;
 }
 
-const pageSizes = { stacked: 8, fan: 5, cascade: 5 };
+const pageSizes = { stacked: 4, fan: 5, cascade: 5 };
 const searchPageSize = 40;
 
 export const BookshelfView: React.FC<BookshelfViewProps> = ({
@@ -174,6 +174,7 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
     <div className="flex-1 flex flex-col justify-between px-6 md:px-14 lg:px-20 py-4 md:py-6 w-full max-w-7xl mx-auto select-none">
       {/* Top Architectural Gallery Header (No Sidebar!) */}
       <header
+        data-shelf-return-scene
         className={`flex flex-col xl:flex-row xl:items-end justify-between gap-4 mb-5 pb-4 border-b transition-colors ${
           isDark ? 'border-[#1f212a]' : 'border-[#dedad0]'
         }`}
@@ -387,6 +388,7 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
         }`}>
           {/* Soft overhead gallery spotlight gradient */}
           <div
+            data-shelf-return-scene
             className={`absolute -top-16 w-3/4 h-72 blur-3xl pointer-events-none ${
               isDark
                 ? 'bg-gradient-to-b from-[#1c1e28]/50 via-transparent to-transparent'
@@ -446,7 +448,7 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
               <div ref={rowRef} data-shelf-scroll={mode === 'shelf' ? '' : undefined} onScroll={updateScrollEdges}
                 style={mode === 'cascade' ? { '--cascade-intervals': Math.max(0, displayedAlbums.length - 1) } as React.CSSProperties : undefined}
                 className={`shelf-deck relative isolate w-full px-4 pt-8 z-10 ${mode === 'shelf'
-                  ? 'shelf-row flex items-end gap-6 sm:gap-10 lg:gap-14 pb-[4.25rem] overflow-x-auto no-scrollbar'
+                  ? 'shelf-row flex items-end gap-6 sm:gap-10 lg:gap-14 pb-2 overflow-x-auto no-scrollbar'
                   : `grid place-content-center overflow-x-clip ${mode === 'fan' ? 'shelf-fan' : mode === 'cascade' ? 'shelf-cascade' : 'pb-[4.25rem]'}`}`}
               >
                 {displayedAlbums.map(({ album }, index) => (
@@ -467,6 +469,7 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
               {mode === 'shelf' && ([[-1, scrollEdges.left, ChevronLeft], [1, scrollEdges.right, ChevronRight]] as const)
                 .map(([direction, visible, Icon]) => visible && (
                   <button key={direction} type="button" onClick={() => scrollShelf(direction)}
+                    data-shelf-return-scene
                     aria-label={direction === -1 ? '向左浏览书架' : '向右浏览书架'}
                     className={`archive-control absolute top-1/2 z-50 rounded-full border p-2 shadow-lg ${direction === -1 ? '-left-3' : '-right-3'}`}>
                     <Icon className="h-5 w-5" aria-hidden="true" />
@@ -477,7 +480,7 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
 
           {/* Solid Architectural Shelf Beam Plinth */}
           {mode !== 'search' && (
-            <div className={`w-full max-w-5xl lg:max-w-[calc(100%-4rem)] relative ${
+            <div data-shelf-return-scene className={`w-full max-w-5xl lg:max-w-[calc(100%-4rem)] relative ${
               compactPlinth ? (pageCount > 1 ? 'mt-4 h-9' : 'h-0') : 'mt-4 h-[4.5rem]'
             }`}>
               <div aria-hidden="true" className={`transition-[opacity,transform] duration-500 motion-reduce:transition-none ${
@@ -533,6 +536,7 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
 
       {/* Minimalist Footnote Specifications - ENLARGED */}
       <footer
+        data-shelf-return-scene
         className={`pt-5 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-xs md:text-sm font-mono transition-colors ${
           isDark
             ? 'border-[#191a22] text-[#787a8b]'

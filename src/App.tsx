@@ -3,7 +3,7 @@ import { useReducedMotion } from 'framer-motion';
 import { Minimize2 } from 'lucide-react';
 import { LOCAL_ARCHIVE } from './data/vaultData';
 import { Album, Track, ViewMode, ThemeMode, shelfDisplayModes } from './types';
-import { moveBookToShelf, moveCover, type CoverReversal } from './coverTransition';
+import { moveCover, returnBookToShelf, type CoverReversal } from './coverTransition';
 import { useSyncedVideo } from './useSyncedVideo';
 import { BookshelfView } from './components/BookshelfView';
 import { BookSpreadView } from './components/BookSpreadView';
@@ -147,20 +147,20 @@ export const App: React.FC = () => {
     if (shelf) shelfScroll.current = shelf.scrollLeft;
 
     try {
-      const commitView = () => {
+      const changeView = () => {
         update?.();
         setCurrentView(to);
       };
-      if (to === 'shelf' && toCover.startsWith('shelf-') && !search.trim()) {
-        await moveBookToShelf(fromCover, toCover, commitView, !!reduceMotion, shelfDisplayMode);
+      if (to === 'shelf' && fromCover === 'folio-cover' && toCover.startsWith('shelf-') && !search.trim()) {
+        await returnBookToShelf(fromCover, toCover, changeView, !!reduceMotion);
       } else {
-        await moveCover(fromCover, toCover, commitView, !!reduceMotion, reversal);
+        await moveCover(fromCover, toCover, changeView, !!reduceMotion, reversal);
       }
       return !reversal?.signal.aborted;
     } finally {
       transitionDestination.current = null;
     }
-  }, [reduceMotion, search, shelfDisplayMode]);
+  }, [reduceMotion, search]);
 
   const openBook = async (album: Album, source = `shelf-${album.id}`) => {
     if (transitionDestination.current) return;
@@ -189,6 +189,11 @@ export const App: React.FC = () => {
   const returnToShelf = useCallback(() => {
     void navigate('shelf', 'folio-cover', shelfEntry.current);
   }, [navigate]);
+
+  const closeBook = useCallback(() => {
+    if (openingFlight.current) openingFlight.current.abort();
+    else if (!transitionDestination.current) setBookClosing(true);
+  }, []);
 
   const returnToSpread = useCallback(() => {
     if (transitionDestination.current === 'stage') {
@@ -265,7 +270,7 @@ export const App: React.FC = () => {
         }
         if (openingFlight.current) {
           e.preventDefault();
-          openingFlight.current.abort();
+          closeBook();
           return;
         }
         if (currentView === 'stage') {
@@ -273,7 +278,8 @@ export const App: React.FC = () => {
           return;
         }
         if (currentView === 'spread') {
-          setBookClosing(true);
+          e.preventDefault();
+          closeBook();
           return;
         }
       }
@@ -322,9 +328,26 @@ export const App: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleTogglePlay, currentView, isPvFocus, queueOpen, returnToSpread, audioRef, playback]);
+  }, [handleTogglePlay, currentView, isPvFocus, queueOpen, returnToSpread, closeBook, audioRef, playback]);
 
   const isDark = theme === 'dark';
+  const spread = (
+    <BookSpreadView
+      album={selectedAlbum}
+      currentTrack={currentTrack}
+      isPlaying={playback.isPlaying}
+      theme={theme}
+      opening={bookOpening}
+      closing={bookClosing}
+      framePvStatus={folioPvStatus}
+      onToggleFolioPv={playingVideoUrl || selectedAlbum.videoUrl ? toggleFolioPv : undefined}
+      onToggleTheme={toggleTheme}
+      onPlayTrack={togglePlayTrack}
+      onOpenStage={openStage}
+      onCloseBook={closeBook}
+      onBackToShelf={returnToShelf}
+    />
+  );
 
   return (
     <div
@@ -397,23 +420,7 @@ export const App: React.FC = () => {
             />
           )}
 
-          {currentView === 'spread' && (
-            <BookSpreadView
-              album={selectedAlbum}
-              currentTrack={currentTrack}
-              isPlaying={playback.isPlaying}
-              theme={theme}
-              opening={bookOpening}
-              closing={bookClosing}
-              framePvStatus={folioPvStatus}
-              onToggleFolioPv={playingVideoUrl || selectedAlbum.videoUrl ? toggleFolioPv : undefined}
-              onToggleTheme={toggleTheme}
-              onPlayTrack={togglePlayTrack}
-              onOpenStage={openStage}
-              onCloseBook={() => setBookClosing(true)}
-              onBackToShelf={returnToShelf}
-            />
-          )}
+          {currentView === 'spread' && spread}
 
           {currentView === 'stage' && (
             <GalleryStageView

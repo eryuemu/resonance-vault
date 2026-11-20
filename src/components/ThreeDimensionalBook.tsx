@@ -102,19 +102,18 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
     : cascade ? offset * 3
     : stacked && !hovering ? stackRotations[index % stackRotations.length] : 0;
 
-  // Stacking order: center books in front, outer books tuck behind; hovered book leaps to topmost (z: 50)
+  // The original shelf and stack lift the hovered book. The newer displays keep their own depth order.
   const centerDistance = Math.abs(offset);
   const fanBaseLayer = Math.round(35 - centerDistance * 4) + (offset > 0 ? 1 : 0);
-  const bookLayer = hovering ? 50 : fan ? fanBaseLayer : cascade ? 25 - index : 10 + index;
+  const bookLayer = fan ? fanBaseLayer : cascade ? 25 - index : hovering ? 40 : 10 + index;
 
   const slotStyle = {
     '--fan-span': fan ? Math.max(2, (total - 1) * fanSpacing + 1.25) : undefined,
     '--book-layer': bookLayer,
     '--stack-offset': stacked ? offset : undefined,
-    '--stack-intervals': stacked ? Math.max(1, total - 1) : undefined,
     '--cascade-offset': cascade ? offset : undefined,
     left: fan ? `calc(var(--shelf-book-width) * ${offset * fanSpacing})` : undefined,
-    top: fan ? `calc(var(--shelf-book-width) * ${Math.pow(Math.abs(offset), 2) * 0.012})` : undefined
+    top: stacked ? index * 8 : fan ? `calc(var(--shelf-book-width) * ${Math.pow(Math.abs(offset), 2) * 0.012})` : undefined
   } as React.CSSProperties;
 
   return (
@@ -135,10 +134,11 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
         animate={{
           originY: fan ? 1.2 : 0.5,
           rotateZ: rotation,
+          x: stacked ? `${hovering ? offset * 12.65 : 0}%` : 0,
           y: hovering ? (fan ? -22 : overlapping ? -15 : -10) : 0,
           scale: hovering ? (fan ? 1.03 : overlapping ? 1.02 : 1) : 1
         }}
-        transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 220, damping: 28 }}
+        transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 220, damping: fan || cascade ? 28 : 30 }}
       >
         <motion.div
           onPointerMove={dragHandlers ? undefined : handlePointerMove}
@@ -187,6 +187,7 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
               <button
                 type="button"
                 className="shelf-book-trigger"
+                data-shelf-landing
                 aria-label={`翻开《${album.title}》`}
                 onClick={onOpen}
               />
@@ -203,7 +204,7 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
       </motion.div>
 
       {!overlapping && (
-        <div className="absolute inset-x-0 top-full mt-5 flex h-10 items-center justify-center">
+        <div data-shelf-book-caption className="mt-5 flex h-10 items-center justify-center">
           {sortControls ?? <span className="max-w-48 truncate text-sm opacity-75">{album.artist}</span>}
         </div>
       )}

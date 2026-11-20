@@ -1,23 +1,7 @@
 import { flushSync } from 'react-dom';
-import type { ShelfDisplayMode } from './types';
 
 function findCover(id: string) {
   return document.querySelector<HTMLElement>(`[data-cover="${CSS.escape(id)}"]`);
-}
-
-function shelfBookParts(cover: HTMLElement | null) {
-  const book = cover?.closest<HTMLElement>('.shelf-book');
-  const pose = book?.parentElement;
-  return book && pose ? { book, pose } : undefined;
-}
-
-function settleTransform(element: HTMLElement, start: string) {
-  const rest = getComputedStyle(element).transform;
-  if (start !== rest) {
-    element.animate([{ transform: start }, { transform: rest }], {
-      duration: 180, easing: 'ease-out', fill: 'backwards'
-    });
-  }
 }
 
 export interface CoverReversal {
@@ -34,32 +18,43 @@ export async function moveCover(from: string, to: string, update: () => void, re
 
   const root = document.documentElement;
   let destination: HTMLElement | null | undefined;
+  let landingSlot: HTMLElement | null | undefined;
   let committed = false;
-  let departurePose: { roll: string; tilt: string } | undefined;
   let removeAbortListener: (() => void) | undefined;
+  const departingSlot = reversal && source.closest<HTMLElement>('[data-shelf-slot]');
   root.dataset.vaultTransition = '';
+  // The shelf snapshot can reappear during a reversal. Only the moving cover represents this book in it.
+  departingSlot?.setAttribute('data-vault-departing-book', '');
   source.style.viewTransitionName = 'vault-cover';
 
   try {
     const transition = document.startViewTransition(() => {
       source.style.removeProperty('view-transition-name');
       if (reversal?.signal.aborted) return;
-      const model = reversal && shelfBookParts(source);
-      if (model) {
-        departurePose = {
-          roll: getComputedStyle(model.pose).transform,
-          tilt: getComputedStyle(model.book).transform
-        };
-      }
       flushSync(update);
       committed = true;
-      destination = findCover(to);
+      const cover = findCover(to);
+      const shelfLanding = from === 'folio-cover' ? cover?.parentElement?.querySelector<HTMLElement>('[data-shelf-landing]') : undefined;
+      destination = shelfLanding ?? cover;
+
+      // The invisible trigger supplies the endpoint while the real book stays in shelf depth order.
+      if (shelfLanding) {
+        landingSlot = shelfLanding.closest<HTMLElement>('[data-shelf-slot]');
+        if (landingSlot) landingSlot.dataset.vaultLandingBook = 'waiting';
+        root.dataset.vaultTransition = 'shelf-return';
+      } else if (cover?.closest('[data-frame-window]')) {
+        root.dataset.vaultTransition = 'frame-return';
+      }
+
       if (destination) destination.style.viewTransitionName = 'vault-cover';
     });
 
+    let ready = false;
+    void transition.ready.then(() => {
+      ready = true;
+      if (landingSlot) landingSlot.dataset.vaultLandingBook = 'ready';
+    }, () => {});
     if (reversal) {
-      let ready = false;
-      void transition.ready.then(() => { ready = true; }, () => {});
       const reverse = () => {
         const animations = ready ? document.getAnimations().filter(({ effect, currentTime }) =>
           effect instanceof KeyframeEffect && effect.pseudoElement?.startsWith('::view-transition') && Number(currentTime) > 0
@@ -76,121 +71,154 @@ export async function moveCover(from: string, to: string, update: () => void, re
     removeAbortListener?.();
     delete root.dataset.vaultTransition;
     source.style.removeProperty('view-transition-name');
+    departingSlot?.removeAttribute('data-vault-departing-book');
     destination?.style.removeProperty('view-transition-name');
-    if (committed && reversal?.signal.aborted) {
-      flushSync(reversal.restore);
-      const restored = departurePose && shelfBookParts(findCover(from));
-      if (restored && departurePose) {
-        // The snapshot can end in the hovered pose even though the live shelf remounts at rest.
-        settleTransform(restored.pose, departurePose.roll);
-        settleTransform(restored.book, departurePose.tilt);
-      }
-    }
+    landingSlot?.removeAttribute('data-vault-landing-book');
+    if (committed && reversal?.signal.aborted) flushSync(reversal.restore);
   }
 }
 
-const shelfReturnMotion: Record<ShelfDisplayMode, { tilt: string; lift: number }> = {
-  shelf: { tilt: 'rotateX(-8deg) rotateY(-16deg)', lift: 0 },
-  stacked: { tilt: 'rotateX(-12deg) rotateY(-22deg)', lift: 18 },
-  fan: { tilt: 'rotateX(-10deg) rotateY(-18deg)', lift: 32 },
-  cascade: { tilt: 'rotateX(-24deg) rotateY(-20deg)', lift: 0 }
-};
+const bookReturnTiming = {
+  duration: 540,
+  easing: 'cubic-bezier(0.32, 0.1, 0.22, 1)',
+  fill: 'both'
+} satisfies KeyframeAnimationOptions;
 
-export async function moveBookToShelf(from: string, to: string, update: () => void, reduceMotion: boolean, mode: ShelfDisplayMode) {
+function coverFinish(style: CSSStyleDeclaration): Keyframe {
+  return { borderColor: style.borderColor, borderRadius: style.borderRadius, boxShadow: style.boxShadow };
+}
+
+export async function returnBookToShelf(from: string, to: string, update: () => void, reduceMotion: boolean) {
   const source = findCover(from);
-  if (reduceMotion || !source?.animate) {
-    update();
-    return;
-  }
+  if (reduceMotion || !source?.animate) return moveCover(from, to, update, reduceMotion);
 
-  const start = source.getBoundingClientRect();
+  const sourceBounds = source.getBoundingClientRect();
+  const sourceStyle = getComputedStyle(source);
+  const startSize = { width: sourceStyle.width, height: sourceStyle.height };
+  const startFinish = coverFinish(sourceStyle);
+  const startCaption = source.querySelector<HTMLElement>('.hardcover-caption')?.offsetTop;
+  const folioStyle = getComputedStyle(source.closest('.folio')!);
+  const startPitch = folioStyle.transform === 'none' ? '0deg' : folioStyle.getPropertyValue('--folio-tilt').trim();
+  const startTransform = `rotateX(${startPitch}) rotateY(0deg)`;
+  const toolbar = source.closest('main')?.querySelector<HTMLElement>('header');
+  const toolbarBounds = toolbar?.getBoundingClientRect();
+  const exitingToolbar = toolbar?.cloneNode(true) as HTMLElement | undefined;
+
   flushSync(update);
-
-  const model = shelfBookParts(findCover(to));
-  if (!model) return;
-  const { book, pose } = model;
-  const slot = book.closest<HTMLElement>('[data-shelf-slot]');
+  const cover = findCover(to);
+  const book = cover?.closest<HTMLElement>('.shelf-book');
+  const pose = book?.parentElement;
+  const slot = book?.closest<HTMLElement>('[data-shelf-slot]');
   const shelf = slot?.closest('main');
-  const host = shelf?.parentElement;
-  if (!slot || !shelf || !host) return;
+  if (!cover || !book || !pose || !slot || !shelf) return;
 
-  const landing = slot.getBoundingClientRect();
-  if (!start.width || !start.height || !landing.width || !landing.height) return;
+  const landingBounds = cover.getBoundingClientRect();
+  const landingLayer = Number(getComputedStyle(slot).zIndex);
+  const overlapsLanding = (item: HTMLElement) => {
+    const front = item.querySelector('.shelf-book-cover');
+    if (!front || Number(getComputedStyle(item).zIndex) <= landingLayer) return false;
+    const bounds = front.getBoundingClientRect();
+    return bounds.left < landingBounds.right && bounds.right > landingBounds.left &&
+      bounds.top < landingBounds.bottom && bounds.bottom > landingBounds.top;
+  };
+  const shelfScene = Array.from(shelf.querySelectorAll<HTMLElement>('[data-shelf-return-scene], [data-shelf-slot]'))
+    .filter((item) => item !== slot)
+    .map((item) => ({ item, inFront: overlapsLanding(item) }));
 
-  // Fly the shelf's actual 3D faces in a separate layer so the shelf's overflow cannot clip them.
-  const flight = document.createElement('div');
-  flight.dataset.shelfReturnFlight = '';
-  flight.inert = true;
-  flight.setAttribute('aria-hidden', 'true');
-  Object.assign(flight.style, { left: `${landing.left}px`, top: `${landing.top}px` });
-  flight.style.setProperty('--shelf-book-width', getComputedStyle(book).width);
-
-  const flyingPose = pose.cloneNode() as HTMLElement;
-  const flyingBook = book.cloneNode(true) as HTMLElement;
-  const flyingCover = flyingBook.querySelector<HTMLElement>('[data-cover]');
-  if (!flyingCover) return;
-  flyingBook.querySelectorAll('button').forEach(button => button.remove());
-  flyingCover.removeAttribute('data-cover');
-  flyingPose.append(flyingBook);
-  flight.append(flyingPose);
-
-  const landingRoll = getComputedStyle(pose).transform;
-  const landingTilt = getComputedStyle(book).transform;
-  const { tilt, lift } = shelfReturnMotion[mode];
-  flyingPose.style.transform = 'none';
-  flyingBook.style.transform = tilt;
-  host.append(flight);
-
-  // Match the visible cover at takeoff, including the perspective of its initial tilt.
-  const projected = flyingCover.getBoundingClientRect();
-  if (!projected.width || !projected.height) {
-    flight.remove();
-    return;
+  const poseStyle = getComputedStyle(pose);
+  const landingRoll = poseStyle.transform;
+  const [originX, originY] = poseStyle.transformOrigin.split(' ').map(parseFloat);
+  const bookStyle = getComputedStyle(book);
+  const landingBook = { width: bookStyle.width, height: bookStyle.height, transform: bookStyle.transform };
+  const bookKeyframes: Keyframe[] = [{ ...startSize, transform: startTransform }, landingBook];
+  const shelfMode = slot.closest<HTMLElement>('[data-shelf-mode]')?.dataset.shelfMode;
+  if (shelfMode === 'fan' || shelfMode === 'cascade') {
+    bookKeyframes.splice(1, 0, { offset: 0.42, transform: 'rotateX(-11deg) rotateY(-26deg)' });
   }
-  const scaleX = start.width / projected.width;
-  const scaleY = start.height / projected.height;
-  const startX = start.left - landing.left - (projected.left - landing.left) * scaleX;
-  const startY = start.top - landing.top - (projected.top - landing.top) * scaleY;
-  const startTransform = `translate(${startX}px, ${startY}px) scale(${scaleX}, ${scaleY})`;
-  const landingTransform = 'translate(0px, 0px) scale(1, 1)';
-  const arrival = 0.86;
-  const ease = 'cubic-bezier(0.32, 0.1, 0.22, 1)';
-  const timing: KeyframeAnimationOptions = { duration: 560, fill: 'both' };
+  const landingFinish = coverFinish(getComputedStyle(cover));
+  const caption = cover.querySelector<HTMLElement>('.hardcover-caption');
+  const landingCaption = caption?.offsetTop;
+  const poseTransform = pose.style.transform;
+  pose.style.transform = 'none';
+  const rest = pose.getBoundingClientRect();
+  pose.style.transform = poseTransform;
 
+  // Move the real book within its own stacking layer, with its slot reserving the shelf layout.
+  slot.style.minWidth = `${slot.offsetWidth}px`;
+  slot.style.minHeight = `${slot.offsetHeight}px`;
+  pose.style.left = `${rest.left}px`;
+  pose.style.top = `${rest.top}px`;
+  slot.setAttribute('data-vault-returning-book', '');
   const wasInert = shelf.inert;
   shelf.inert = true;
-  slot.dataset.shelfReturnTarget = '';
-
-  const animations = [
-    flight.animate([
-      { transform: startTransform, translate: '0px 0px', opacity: 1, easing: ease },
-      { offset: 0.38, translate: `0px ${-lift}px`, easing: 'ease-in-out' },
-      { offset: arrival, transform: landingTransform, translate: '0px 0px', opacity: 1 },
-      { transform: landingTransform, translate: '0px 0px', opacity: 0 }
-    ], timing),
-    flyingPose.animate([
-      { transform: 'none', easing: ease },
-      { offset: arrival, transform: landingRoll },
-      { transform: landingRoll }
-    ], timing),
-    flyingBook.animate([
-      { transform: tilt, easing: ease },
-      { offset: arrival, transform: landingTilt },
-      { transform: landingTilt }
-    ], timing),
-    slot.animate([{ opacity: 0 }, { offset: arrival, opacity: 0 }, { opacity: 1 }], timing),
-    shelf.animate([{ opacity: 0.36 }, { opacity: 1 }], { duration: 240, easing: 'ease-out' })
-  ];
-  const cancel = () => animations.forEach(animation => animation.cancel());
-  window.addEventListener('resize', cancel, { once: true });
+  const animations: Animation[] = [];
+  const stop = () => animations.forEach((animation) => animation.cancel());
 
   try {
-    await Promise.allSettled(animations.map(animation => animation.finished));
+    // Match the projected hardcover before interpolating down to the shelf size and rotation.
+    const measure = pose.animate({ transform: ['none', 'none'] }, { fill: 'both' });
+    const measureBook = book.animate([{ ...startSize, transform: startTransform }], { fill: 'both' });
+    measure.currentTime = measureBook.currentTime = 0;
+    const origin = pose.getBoundingClientRect();
+    const projected = cover.getBoundingClientRect();
+    measure.cancel();
+    measureBook.cancel();
+    const pivotX = origin.left + originX;
+    const pivotY = origin.top + originY;
+    const scaleX = sourceBounds.width / projected.width;
+    const scaleY = sourceBounds.height / projected.height;
+    const x = sourceBounds.left - pivotX - (projected.left - pivotX) * scaleX;
+    const y = sourceBounds.top - pivotY - (projected.top - pivotY) * scaleY;
+
+    animations.push(pose.animate([
+      { transform: 'none', translate: `${x}px ${y}px`, scale: `${scaleX} ${scaleY}` },
+      { transform: landingRoll, translate: '0px 0px', scale: '1 1' }
+    ], bookReturnTiming));
+    animations.push(book.animate(bookKeyframes, bookReturnTiming));
+    animations.push(cover.animate([startFinish, landingFinish], bookReturnTiming));
+    if (caption && startCaption !== undefined && landingCaption !== undefined) {
+      animations.push(caption.animate([
+        { top: `${startCaption}px`, bottom: 'auto' },
+        { top: `${landingCaption}px`, bottom: 'auto' }
+      ], bookReturnTiming));
+    }
+
+    const sceneTiming = { duration: 360, fill: 'both' } as const;
+    for (const { item, inFront } of shelfScene) {
+      // Reveal overlapping neighbors as the moving book slides behind them.
+      animations.push(item.animate([
+        { opacity: 0, offset: 0 }, { opacity: 0, offset: inFront ? 0.52 : 0.3, easing: 'ease' }, { opacity: 1 }
+      ], { ...sceneTiming, duration: inFront ? 460 : 360 }));
+    }
+    const label = slot.querySelector<HTMLElement>('[data-shelf-book-caption]');
+    if (label) animations.push(label.animate([
+      { opacity: 0 }, { opacity: 0, offset: 0.88 }, { opacity: 1 }
+    ], { ...bookReturnTiming, easing: 'linear' }));
+
+    if (exitingToolbar && toolbarBounds) {
+      Object.assign(exitingToolbar.style, {
+        position: 'fixed', pointerEvents: 'none', zIndex: '1',
+        left: `${toolbarBounds.left}px`, top: `${toolbarBounds.top}px`, width: `${toolbarBounds.width}px`
+      });
+      exitingToolbar.inert = true;
+      exitingToolbar.setAttribute('aria-hidden', 'true');
+      shelf.append(exitingToolbar);
+      animations.push(exitingToolbar.animate([
+        { opacity: 1, easing: 'ease' }, { opacity: 0, offset: 0.6 }, { opacity: 0 }
+      ], sceneTiming));
+    }
+
+    window.addEventListener('resize', stop, { once: true });
+    await Promise.allSettled(animations.map((animation) => animation.finished));
   } finally {
-    window.removeEventListener('resize', cancel);
-    flight.remove();
-    slot.removeAttribute('data-shelf-return-target');
+    window.removeEventListener('resize', stop);
+    stop();
+    exitingToolbar?.remove();
     shelf.inert = wasInert;
-    cancel();
+    slot.removeAttribute('data-vault-returning-book');
+    slot.style.removeProperty('min-width');
+    slot.style.removeProperty('min-height');
+    pose.style.removeProperty('left');
+    pose.style.removeProperty('top');
   }
 }

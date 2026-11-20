@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { animate, motion, useMotionValue, useReducedMotion, useTransform } from 'framer-motion';
+import { animate, cancelFrame, frame, motion, useMotionValue, useReducedMotion, useTransform } from 'framer-motion';
 import type { MotionStyle } from 'framer-motion';
 import { Eye, ArrowLeft, Disc, Film, Sun, Moon, Play } from 'lucide-react';
 import { Album, Track, ThemeMode, VideoStatus } from '../types';
@@ -43,7 +43,7 @@ export const BookSpreadView: React.FC<BookSpreadViewProps> = ({
   const leftPageRef = useRef<HTMLDivElement>(null);
   const artworkRef = useRef<HTMLButtonElement>(null);
   const [opened, setOpened] = useState(!opening || !!reduceMotion);
-  const showFrameWindow = opened && !closing && framePvStatus === 'ready';
+  const showFrameWindow = opened && framePvStatus === 'ready';
   const progress = useMotionValue(opening && !reduceMotion ? 0 : 1);
   const coverAngle = useTransform(progress, [0, 0.18, 0.47, 0.75, 0.9, 1], ['180deg', '150deg', '55deg', '3deg', '-1.4deg', '0deg']);
   const mobileCoverAngle = useTransform(progress, [0, 0.13, 0.47, 0.65, 1], ['0deg', '-13deg', '-89deg', '-115deg', '-115deg']);
@@ -69,9 +69,12 @@ export const BookSpreadView: React.FC<BookSpreadViewProps> = ({
     const animation = animate(progress, target, {
       duration: closing ? 0.64 * progress.get() : 0.86,
       ease: [0.32, 0.12, 0.24, 1],
-      onComplete: closing ? onBackToShelf : () => setOpened(true)
+      onComplete: closing ? () => frame.postRender(onBackToShelf) : () => setOpened(true)
     });
-    return () => animation.stop();
+    return () => {
+      animation.stop();
+      cancelFrame(onBackToShelf);
+    };
   }, [closing, onBackToShelf, opening, progress, reduceMotion]);
 
   useEffect(() => {
@@ -104,14 +107,16 @@ export const BookSpreadView: React.FC<BookSpreadViewProps> = ({
   return (
     <div ref={viewRef} className="my-auto px-4 sm:px-8 md:px-12 pt-3 pb-7 max-w-6xl mx-auto w-full select-none">
       {/* Top Quiet Navigation & Controls Header - COMPACT */}
-      <div
-        className={`mb-3 flex flex-wrap items-center justify-between gap-2 border-b pb-2.5 ${
+      <header
+        className={`mb-3 flex flex-wrap items-center justify-between gap-2 border-b pb-2.5 transition-colors ${
           isDark ? 'border-[#1f212b]' : 'border-[#dedad0]'
         }`}
       >
         {/* Back to Shelf Button */}
         <button
+          type="button"
           onClick={onCloseBook}
+          disabled={closing}
           className={`flex items-center gap-2.5 whitespace-nowrap text-sm md:text-base font-serif transition-colors cursor-pointer group ${
             isDark
               ? 'text-[#b0b3c6] hover:text-[#ffffff]'
@@ -192,7 +197,7 @@ export const BookSpreadView: React.FC<BookSpreadViewProps> = ({
             <span className="whitespace-nowrap">纯享展台</span>
           </button>
         </div>
-      </div>
+      </header>
 
       <div className="folio-scene" data-theme={theme}>
         <motion.div
@@ -280,15 +285,15 @@ export const BookSpreadView: React.FC<BookSpreadViewProps> = ({
                     album.aspectRatio === 'landscape' ? 'aspect-video' : 'aspect-[3/4.25]'
                   }`}
                   onClick={onOpenStage}
-                  disabled={closing || !opened || showFrameWindow}
-                  aria-hidden={showFrameWindow || undefined}
+                  disabled={closing || !opened}
                   aria-label={`在纯享展台查看《${album.title}》原画`}
                   title="点击进入全屏纯享展台"
                 >
                   <img
-                    data-cover={showFrameWindow ? undefined : 'folio-artwork'}
+                    data-cover="folio-artwork"
                     src={album.artwork}
                     alt={album.title}
+                    style={{ opacity: showFrameWindow ? 0 : undefined }}
                     className="w-full h-full object-contain bg-black group-hover:scale-[1.02] transition-transform duration-500"
                   />
 
