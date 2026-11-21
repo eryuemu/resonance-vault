@@ -1,17 +1,21 @@
 import React, { useLayoutEffect, useState } from 'react';
-import { motion, useSpring, useMotionValue, useMotionTemplate, useReducedMotion, useTransform } from 'framer-motion';
+import { motion, useSpring, useMotionValue, useMotionTemplate, useReducedMotion, useTransform, type MotionStyle } from 'framer-motion';
 import { Play } from 'lucide-react';
 import { Album, ShelfDisplayMode } from '../types';
 import { HardcoverArtwork } from './HardcoverArtwork';
 import type { useShelfDrag } from './useShelfDrag';
 
 const stackRotations = [-6, 3, -3];
+const poseTransform = (_: unknown, hoverTransform: string) => `${hoverTransform} rotateZ(var(--shelf-roll))`;
 
 interface ThreeDimensionalBookProps {
   album: Album;
   displayMode: ShelfDisplayMode;
   index: number;
   total: number;
+  offset: number;
+  opacity: number;
+  browsing: boolean;
   onOpen: () => void;
   onPlay: () => void;
   sortControls?: React.ReactNode;
@@ -24,6 +28,9 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
   displayMode,
   index,
   total,
+  offset,
+  opacity,
+  browsing,
   onOpen,
   onPlay,
   sortControls,
@@ -37,7 +44,6 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
   const fan = displayMode === 'fan';
   const cascade = displayMode === 'cascade';
   const overlapping = displayMode !== 'shelf';
-  const offset = index - (total - 1) / 2;
 
   // Mouse tilt physics with spring smoothing
   const x = useMotionValue(0);
@@ -49,7 +55,7 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
   const baseRestingRotateX = cascade ? -30 : overlapping ? 4 : 0;
   const shelfRotateY = index === 0 ? -9 : index === total - 1 ? -4 : -6;
   const baseRestingRotateY = cascade ? -6 + offset * 3 : stacked ? -12 : fan ? -10 : shelfRotateY;
-  const hovering = isHovered && !reduceMotion;
+  const hovering = isHovered && !reduceMotion && !browsing;
   const pointerTilt = overlapping ? (hovering && !stacked ? 0.35 : 0) : 1;
   const restingRotateX = useSpring(baseRestingRotateX, { stiffness: 170, damping: 24 });
   const restingRotateY = useSpring(baseRestingRotateY, { stiffness: 170, damping: 24 });
@@ -76,7 +82,7 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
   const glare = useMotionTemplate`radial-gradient(ellipse at ${glareX} ${glareY}, rgb(255 236 190 / 0.26), transparent 62%)`;
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.pointerType === 'touch' || reduceMotion) return;
+    if (e.pointerType === 'touch' || reduceMotion || browsing) return;
     if (!isHovered) setIsHovered(true);
     if (stacked) return;
 
@@ -93,24 +99,23 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
     y.set(0);
   };
 
-  // Symmetrical fan angle fanning out from center
-  const fanAngle = offset * 6.5;
-  // On hover, book straightens slightly towards vertical
-  const rotation = fan ? (hovering ? fanAngle * 0.25 : fanAngle)
-    : cascade ? offset * 3
-    : stacked && !hovering ? stackRotations[index % stackRotations.length] : 0;
+  const fanAngle = offset * 12;
+  const radians = fanAngle * Math.PI / 180;
+  const stackAngle = stacked ? stackRotations[index % stackRotations.length] : 0;
+  const rotation = fan ? fanAngle : cascade ? offset * 3 : stackAngle;
 
-  // The original shelf and stack lift the hovered book. The newer displays keep their own depth order.
-  const centerDistance = Math.abs(offset);
-  const fanBaseLayer = Math.round(35 - centerDistance * 4) + (offset > 0 ? 1 : 0);
-  const bookLayer = fan ? fanBaseLayer : cascade ? 25 - index : hovering ? 40 : 10 + index;
+  // Keep the same cover in front when the same group opens into a fan or folds into a stack.
+  const overlappingLayer = Math.round(1000 - Math.abs(offset - 0.04) * 100);
+  const bookLayer = fan || stacked ? overlappingLayer + (stacked && hovering ? 1000 : 0)
+    : cascade ? total - index : (hovering ? total : 0) + index + 1;
+  const faint = opacity < 0.2;
 
   const slotStyle = {
     '--book-layer': bookLayer,
-    '--stack-offset': stacked ? offset : undefined,
-    '--cascade-offset': cascade ? offset : undefined,
-    left: fan ? `calc(var(--shelf-book-width) * var(--shelf-fan-spacing) * ${offset})` : undefined,
-    top: stacked ? index * 8 : fan ? `calc(var(--shelf-book-width) * ${Math.pow(Math.abs(offset), 2) * 0.012})` : undefined
+    '--shelf-offset': overlapping ? offset : undefined,
+    '--fan-x': fan ? Math.sin(radians) : undefined,
+    '--fan-y': fan ? 1 - Math.cos(radians) : undefined,
+    opacity: opacity === 1 ? undefined : opacity
   } as React.CSSProperties;
 
   return (
@@ -122,16 +127,17 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
       data-fan-book={fan || undefined}
       data-stacked-book={stacked || undefined}
       data-cascade-book={cascade || undefined}
+      data-shelf-faint={faint || undefined}
       style={slotStyle}
       className={`shelf-book-slot relative flex shrink-0 flex-col items-center select-none ${dropClass} ${overlapping ? 'col-start-1 row-start-1' : ''}`}
     >
       <motion.div
         initial={false}
-        style={{ perspective: 1200 }}
+        data-shelf-pose
+        style={{ perspective: 1200, '--shelf-roll': `${rotation}deg` } as MotionStyle}
+        transformTemplate={poseTransform}
         animate={{
-          originY: fan ? 1.2 : 0.5,
-          rotateZ: rotation,
-          x: stacked ? `${hovering ? offset * 12.65 : 0}%` : 0,
+          rotate: hovering ? -stackAngle : 0,
           y: hovering ? (fan ? -22 : overlapping ? -15 : -10) : 0,
           scale: hovering ? (fan ? 1.03 : overlapping ? 1.02 : 1) : 1
         }}
@@ -153,7 +159,7 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
           }}
           data-drag-surface
           className={`shelf-book ${dragHandlers ? 'touch-none cursor-grab active:cursor-grabbing' : ''}`}
-          data-show-quick-play={showQuickPlay || undefined}
+          data-show-quick-play={(showQuickPlay && !browsing) || undefined}
           {...dragHandlers}
         >
           <div className="shelf-book-back" aria-hidden="true" />
@@ -185,10 +191,11 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
                 type="button"
                 className="shelf-book-trigger"
                 data-shelf-landing
+                tabIndex={faint ? -1 : undefined}
                 aria-label={`翻开《${album.title}》`}
                 onClick={onOpen}
               />
-              <button type="button" onClick={(event) => {
+              <button type="button" tabIndex={faint ? -1 : undefined} onClick={(event) => {
                 if (event.detail > 0) event.currentTarget.blur();
                 onPlay();
               }} aria-label={`播放《${album.title}》`}

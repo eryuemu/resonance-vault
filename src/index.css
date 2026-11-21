@@ -292,7 +292,7 @@ html[data-vault-transition='frame-return']::view-transition-old(vault-cover) {
   --book-width-scale: 0.95;
   --shelf-book-base-width: calc(clamp(12rem, 22.5vw, 20.25rem) * var(--book-width-scale, 1));
   --shelf-fan-spacing: 0.58;
-  --shelf-fan-span: max(2, var(--shelf-fan-intervals) * var(--shelf-fan-spacing) + 1.25);
+  --shelf-fan-span: max(2, var(--shelf-intervals) * var(--shelf-fan-spacing) + 1.25);
   container-type: inline-size;
 }
 
@@ -300,8 +300,12 @@ html[data-vault-transition='frame-return']::view-transition-old(vault-cover) {
   justify-content: safe center;
 }
 
+main[data-view='shelf'] {
+  scrollbar-gutter: stable;
+}
+
 .shelf-book-slot {
-  /* Use the fan's available space for every layout so switching or paging never resizes a book. */
+  /* Use the fan's available space to keep book sizes consistent across layouts. */
   --shelf-book-width: min(var(--shelf-book-base-width), 96cqi / var(--shelf-fan-span));
   width: var(--shelf-book-width);
   z-index: var(--book-layer);
@@ -610,28 +614,41 @@ html[data-vault-transition='frame-return']::view-transition-old(vault-cover) {
 .shelf-fan {
   padding-inline: 1rem;
   padding-top: clamp(1rem, 2.5vw, 2.5rem);
-  padding-bottom: clamp(3rem, 5vw, 4.5rem);
-  overflow-x: clip;
+  padding-bottom: clamp(3rem, 8vw, 6.75rem);
+}
+
+.shelf-gallery {
+  touch-action: pan-y pinch-zoom;
+}
+
+.shelf-book-slot[data-shelf-faint] .shelf-book > button {
+  pointer-events: none;
+}
+
+.shelf-book-slot[data-fan-book] {
+  --fan-radius: calc(var(--shelf-book-width) * 2.75);
+  left: calc(var(--fan-radius) * var(--fan-x));
+  top: calc(var(--fan-radius) * var(--fan-y));
 }
 
 .shelf-book-slot[data-stacked-book] {
-  left: calc(clamp(10px, (100cqi - 12rem) / 3, 23%) * var(--stack-offset));
+  left: calc(var(--shelf-book-width) * 0.66 * var(--shelf-offset));
 }
 
 .shelf-cascade {
   /* Reduce the rise on short screens while keeping the covers at full size. */
   --cascade-rise: clamp(
     2.25rem,
-    (100svh - 16rem - var(--shelf-book-base-width) * 4.25 / 3) / max(1, var(--cascade-intervals)),
+    (100svh - 16rem - var(--shelf-book-base-width) * 4.25 / 3) / max(1, var(--shelf-intervals)),
     min(var(--shelf-book-base-width) * 0.38, 5.75rem)
   );
-  padding-block: calc(1.25rem + var(--cascade-rise) * var(--cascade-intervals) / 2);
+  padding-block: calc(1.25rem + var(--cascade-rise) * var(--shelf-intervals) / 2);
 }
 
 .shelf-book-slot[data-cascade-book] {
-  --cascade-run: clamp(0px, (100cqi - var(--shelf-book-width) - 0.5rem) / max(1, var(--cascade-intervals)), var(--shelf-book-width) * 0.78);
-  left: calc(var(--cascade-offset) * var(--cascade-run));
-  top: calc(var(--cascade-offset) * var(--cascade-rise) * -1);
+  --cascade-run: clamp(0px, (100cqi - var(--shelf-book-width) - 0.5rem) / max(1, var(--shelf-intervals)), var(--shelf-book-width) * 0.78);
+  left: calc(var(--shelf-offset) * var(--cascade-run));
+  top: calc(var(--shelf-offset) * var(--cascade-rise) * -1);
 }
 
 @media (max-width: 639px) {

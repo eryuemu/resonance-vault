@@ -5,6 +5,7 @@ import { Album, Track, ViewMode, ThemeMode, shelfDisplayModes } from './types';
 import { moveCover, returnBookToShelf, type CoverReversal } from './coverTransition';
 import { useSyncedVideo } from './useSyncedVideo';
 import { BookshelfView } from './components/BookshelfView';
+import type { ShelfPositions } from './components/useShelfBrowse';
 import { BookSpreadView } from './components/BookSpreadView';
 import { GalleryStageView } from './components/GalleryStageView';
 import { QuietPlayer } from './components/QuietPlayer';
@@ -33,7 +34,6 @@ const Vault: React.FC<{ libraryAlbums: Album[] }> = ({ libraryAlbums }) => {
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
-  const [shelfPage, setShelfPage] = useState(0);
   const [selectedAlbumId, setSelectedAlbumId] = useState(albums[0].id);
   const selectedAlbum = albums.find((album) => album.id === selectedAlbumId) ?? albums[0];
   const [currentView, setCurrentView] = useState<ViewMode>('shelf');
@@ -65,6 +65,7 @@ const Vault: React.FC<{ libraryAlbums: Album[] }> = ({ libraryAlbums }) => {
   const exitPvFocusRef = useRef<HTMLButtonElement>(null);
   const viewScroll = useRef({ shelf: 0, spread: 0, stage: 0 });
   const shelfScroll = useRef(0);
+  const shelfPositions = useRef<ShelfPositions>({ stacked: 0, fan: 0, cascade: 0 });
   const shelfEntry = useRef('');
   const transitionDestination = useRef<ViewMode | null>(null);
   const openingFlight = useRef<AbortController | null>(null);
@@ -412,8 +413,7 @@ const Vault: React.FC<{ libraryAlbums: Album[] }> = ({ libraryAlbums }) => {
               search={search}
               searchOpen={searchOpen}
               onSearchOpenChange={setSearchOpen}
-              shelfPage={shelfPage}
-              onShelfPageChange={setShelfPage}
+              positions={shelfPositions}
               onSearch={searchShelf}
               onMoveAlbum={moveAlbum}
               onPlayAlbum={playAlbum}

@@ -1,20 +1,20 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Layers, Columns3, GalleryHorizontalEnd, TrendingUp, Sun, Moon, Search, X, GripVertical, ChevronLeft, ChevronRight, Play, ArrowUpDown, Check } from 'lucide-react';
 import { ThreeDimensionalBook } from './ThreeDimensionalBook';
 import { Album, ShelfDisplayMode, ThemeMode, Track } from '../types';
 import { useShelfDrag } from './useShelfDrag';
 import { useShelfSlide } from './useShelfSlide';
+import { alignRow, galleryCenter, galleryPosition, rowCenter, shelfBooks, shelfWindowSize, useShelfBrowse, type ShelfPositions } from './useShelfBrowse';
 import { matchesSearch, moveItem } from '../preferences';
 
 interface BookshelfViewProps {
   albums: Album[];
   search: string;
   searchOpen: boolean;
-  shelfPage: number;
+  positions: React.MutableRefObject<ShelfPositions>;
   onSearch: (query: string) => void;
   onSearchOpenChange: (open: boolean) => void;
-  onShelfPageChange: (page: number) => void;
   onMoveAlbum: (id: string, target: string) => void;
   onPlayAlbum: (album: Album) => void;
   onPlayTrack: (track: Track) => void;
@@ -25,17 +25,15 @@ interface BookshelfViewProps {
   onSelectAlbum: (album: Album) => void;
 }
 
-const pageSizes = { stacked: 4, fan: 5, cascade: 5 };
 const searchPageSize = 40;
 
 export const BookshelfView = React.memo(function BookshelfView({
   albums,
   search,
   searchOpen,
-  shelfPage,
+  positions,
   onSearch,
   onSearchOpenChange,
-  onShelfPageChange,
   onMoveAlbum,
   onPlayAlbum,
   onPlayTrack,
@@ -49,7 +47,6 @@ export const BookshelfView = React.memo(function BookshelfView({
   const reduceMotion = useReducedMotion();
   const [sorting, setSorting] = useState(false);
   const [searchLimit, setSearchLimit] = useState(searchPageSize);
-  const [scrollEdges, setScrollEdges] = useState({ left: false, right: false });
   const rowRef = useRef<HTMLDivElement>(null);
   const { active, handle } = useShelfDrag(onMoveAlbum);
   const slideBooks = useShelfSlide();
@@ -64,41 +61,17 @@ export const BookshelfView = React.memo(function BookshelfView({
     });
   }, [albums, query]);
   const mode = query ? 'search' : displayMode;
-  const pageSize = mode === 'search' || mode === 'shelf' ? 0 : pageSizes[mode];
-  const pageCount = pageSize ? Math.ceil(results.length / pageSize) : 0;
   const canSort = sorting && !query;
   const orderedResults = active
     ? moveItem(results, results.findIndex(({ album }) => album.id === active.id),
       results.findIndex(({ album }) => album.id === active.target))
     : results;
-  const albumsOnPage = (value: ShelfDisplayMode, page: number) => {
-    if (value === 'shelf') return orderedResults;
-    const size = pageSizes[value];
-    return orderedResults.slice(page * size, (page + 1) * size);
-  };
-  const displayedAlbums = albumsOnPage(displayMode, shelfPage);
-  const compactPlinth = mode === 'fan' || mode === 'cascade';
+  const browse = useShelfBrowse(rowRef, mode, orderedResults.length, positions, !!reduceMotion);
+  const displayedBooks = mode === 'search' ? [] : shelfBooks(mode, orderedResults.length, browse.position);
+  const bookIntervals = Math.max(0, Math.min(shelfWindowSize, orderedResults.length) - 1);
   const toolbarButton = 'archive-control inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1.5 text-xs sm:text-sm';
   const displayButton = (value: ShelfDisplayMode) =>
     `archive-control flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded px-1 sm:flex-none sm:px-2.5 py-1.5 aria-pressed:bg-[#c5a059]/15 ${displayMode === value ? 'font-semibold' : ''}`;
-
-  const updateScrollEdges = () => {
-    const row = rowRef.current;
-    if (!row) return;
-    const left = row.scrollLeft > 5;
-    const right = row.scrollWidth - row.clientWidth - row.scrollLeft > 5;
-    setScrollEdges((current) => current.left === left && current.right === right ? current : { left, right });
-  };
-
-  useLayoutEffect(() => {
-    const row = rowRef.current;
-    if (!row) return;
-    updateScrollEdges();
-    const observer = new ResizeObserver(updateScrollEdges);
-    observer.observe(row);
-    if (row.firstElementChild) observer.observe(row.firstElementChild);
-    return () => observer.disconnect();
-  }, [mode, albums.length, canSort]);
 
   const closeSearch = () => {
     onSearch('');
@@ -122,26 +95,21 @@ export const BookshelfView = React.memo(function BookshelfView({
     return () => window.removeEventListener('keydown', find);
   }, [onSearchOpenChange]);
 
-  const scrollShelf = (direction: number) => {
+  const changeDisplay = (value: ShelfDisplayMode, update: () => void) => {
     const row = rowRef.current;
-    row?.scrollBy({ left: direction * Math.max(180, row.clientWidth * 0.7),
-      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
-  };
-
-  const slideTo = (value: ShelfDisplayMode, page: number, update: () => void, direction?: -1 | 1) => {
-    const nextAlbums = albumsOnPage(value, page);
-    slideBooks(rowRef.current, nextAlbums.map(({ album }) => album.id), !!reduceMotion, update, direction);
-  };
-
-  const changeDisplay = (value: ShelfDisplayMode, update: (page: number) => void) => {
-    if (mode === 'search' || (mode === value && (value === 'shelf' || shelfPage === 0))) {
-      update(0);
+    if (mode === 'search' || mode === value || !row) {
+      update();
       return;
     }
-    const page = mode !== value && mode !== 'shelf' && value !== 'shelf'
-      ? Math.floor((shelfPage * pageSizes[mode] + Math.floor(displayedAlbums.length / 2)) / pageSizes[value])
-      : 0;
-    slideTo(value, page, () => update(page), mode === value ? -1 : undefined);
+    browse.pause();
+    const count = orderedResults.length;
+    const center = mode === 'shelf' ? rowCenter(row) : galleryCenter(mode, count, browse.position);
+    const position = value === 'shelf' ? 0 : galleryPosition(value, count, center);
+    const nextBooks = shelfBooks(value, count, position);
+    slideBooks(row, nextBooks.map(({ index }) => orderedResults[index].album.id), !!reduceMotion, () => {
+      if (value !== 'shelf') browse.setPosition(value, position);
+      update();
+    }, value === 'shelf' ? () => alignRow(row, center) : undefined);
   };
 
   const sortControls = (album: Album, index: number) => !canSort ? undefined : (
@@ -282,7 +250,6 @@ export const BookshelfView = React.memo(function BookshelfView({
               onClick={() => {
                 changeDisplay('shelf', () => {
                   if (displayMode !== 'shelf') {
-                    onShelfPageChange(0);
                     onDisplayModeChange('shelf');
                   }
                   setSorting(!sorting);
@@ -351,9 +318,8 @@ export const BookshelfView = React.memo(function BookshelfView({
                 key={value}
                 type="button"
                 aria-pressed={displayMode === value}
-                onClick={() => changeDisplay(value, (page) => {
+                onClick={() => changeDisplay(value, () => {
                   if (value !== 'shelf') setSorting(false);
-                  onShelfPageChange(page);
                   setSearchLimit(searchPageSize);
                   if (searchOpen) {
                     onSearch('');
@@ -444,95 +410,68 @@ export const BookshelfView = React.memo(function BookshelfView({
               )}
             </motion.div>
           ) : (
-            <>
-              <div ref={rowRef} data-shelf-scroll={mode === 'shelf' ? '' : undefined} onScroll={updateScrollEdges}
-                style={{
-                  '--shelf-fan-intervals': Math.max(0, Math.min(pageSizes.fan, orderedResults.length) - 1),
-                  '--cascade-intervals': mode === 'cascade' ? Math.max(0, displayedAlbums.length - 1) : undefined
-                } as React.CSSProperties}
-                className={`shelf-deck relative isolate w-full px-4 pt-8 z-10 ${mode === 'shelf'
-                  ? 'shelf-row flex items-end gap-6 sm:gap-10 lg:gap-14 pb-2 overflow-x-auto no-scrollbar'
-                  : `grid place-content-center overflow-x-clip ${mode === 'fan' ? 'shelf-fan' : mode === 'cascade' ? 'shelf-cascade' : 'pb-[4.25rem]'}`}`}
-              >
-                {displayedAlbums.map(({ album }, index) => (
-                  <ThreeDimensionalBook
-                    key={album.id}
-                    album={album}
-                    displayMode={mode}
-                    index={index}
-                    total={displayedAlbums.length}
-                    onOpen={() => onSelectAlbum(album)}
-                    onPlay={() => onPlayAlbum(album)}
-                    sortControls={sortControls(album, index)}
-                    dragHandlers={canSort ? handle(album.id) : undefined}
-                    dropClass={dropClass(album.id)}
-                  />
-                ))}
-              </div>
-              {mode === 'shelf' && ([[-1, scrollEdges.left, ChevronLeft], [1, scrollEdges.right, ChevronRight]] as const)
-                .map(([direction, visible, Icon]) => visible && (
-                  <button key={direction} type="button" onClick={() => scrollShelf(direction)}
-                    data-shelf-return-scene
-                    aria-label={direction === -1 ? '向左浏览书架' : '向右浏览书架'}
-                    className={`archive-control absolute top-1/2 z-50 rounded-full border p-2 shadow-lg ${direction === -1 ? '-left-3' : '-right-3'}`}>
-                    <Icon className="h-5 w-5" aria-hidden="true" />
-                  </button>
-                ))}
-            </>
+            <div ref={rowRef} data-shelf-scroll={mode === 'shelf' ? '' : undefined}
+              role="group" aria-label="滚动浏览画册" tabIndex={0}
+              onKeyDown={(event) => {
+                if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+                event.preventDefault();
+                if (browse.step(event.key === 'ArrowLeft' ? -1 : 1)) event.currentTarget.focus({ preventScroll: true });
+              }}
+              {...browse.touchHandlers}
+              style={{ '--shelf-intervals': bookIntervals } as React.CSSProperties}
+              className={`shelf-deck relative isolate w-full px-4 pt-8 z-10 ${mode === 'shelf'
+                ? 'shelf-row flex items-end gap-6 sm:gap-10 lg:gap-14 pb-2 overflow-x-auto no-scrollbar'
+                : `shelf-gallery grid place-content-center overflow-x-clip ${mode === 'fan' ? 'shelf-fan' : mode === 'cascade' ? 'shelf-cascade' : 'pb-[4.25rem]'}`}`}
+            >
+              {displayedBooks.map(({ index, offset, opacity }) => {
+                const { album } = orderedResults[index];
+                return <ThreeDimensionalBook
+                  key={album.id}
+                  album={album}
+                  displayMode={mode}
+                  index={index}
+                  total={orderedResults.length}
+                  offset={offset}
+                  opacity={opacity}
+                  browsing={browse.browsing}
+                  onOpen={() => {
+                    browse.pause();
+                    onSelectAlbum(album);
+                  }}
+                  onPlay={() => onPlayAlbum(album)}
+                  sortControls={sortControls(album, index)}
+                  dragHandlers={canSort ? handle(album.id) : undefined}
+                  dropClass={dropClass(album.id)}
+                />;
+              })}
+            </div>
           )}
 
           {/* Solid Architectural Shelf Beam Plinth */}
-          {mode !== 'search' && (
-            <div data-shelf-return-scene className={`w-full max-w-5xl lg:max-w-[calc(100%-4rem)] relative ${
-              compactPlinth ? (pageCount > 1 ? 'mt-4 h-9' : 'h-0') : 'mt-4 h-[4.5rem]'
-            }`}>
-              <div aria-hidden="true" className={`transition-[opacity,transform] duration-500 motion-reduce:transition-none ${
-                mode === 'shelf' ? 'opacity-100' : 'translate-y-2 opacity-0'
-              }`}>
+          {mode === 'shelf' && (
+            <div data-shelf-return-scene aria-hidden="true" className="mt-4 h-[4.5rem] w-full max-w-5xl lg:max-w-[calc(100%-4rem)]">
+              <div
+                className={`w-full h-4 border-t border-b shadow-2xl flex items-center px-6 ${
+                  isDark
+                    ? 'bg-[#14151b] border-[#2a2c38] border-b-[#090a0d]'
+                    : 'bg-[#ded8cb] border-[#cfc8b8] border-b-[#b8b09d]'
+                }`}
+              >
                 <div
-                  className={`w-full h-4 border-t border-b shadow-2xl flex items-center px-6 ${
+                  className={`w-full h-[1px] ${
                     isDark
-                      ? 'bg-[#14151b] border-[#2a2c38] border-b-[#090a0d]'
-                      : 'bg-[#ded8cb] border-[#cfc8b8] border-b-[#b8b09d]'
-                  }`}
-                >
-                  <div
-                    className={`w-full h-[1px] ${
-                      isDark
-                        ? 'bg-gradient-to-r from-transparent via-[#3a3d4d] to-transparent opacity-60'
-                        : 'bg-gradient-to-r from-transparent via-[#ffffff] to-transparent opacity-70'
-                    }`}
-                  />
-                </div>
-                <div
-                  className={`w-full h-14 bg-gradient-to-b ${
-                    isDark
-                      ? 'from-black/80 to-transparent'
-                      : 'from-black/15 to-transparent'
+                      ? 'bg-gradient-to-r from-transparent via-[#3a3d4d] to-transparent opacity-60'
+                      : 'bg-gradient-to-r from-transparent via-[#ffffff] to-transparent opacity-70'
                   }`}
                 />
               </div>
-              {pageCount > 1 && (
-                <motion.nav aria-label="画册分页"
-                  initial={reduceMotion ? false : { opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: reduceMotion ? 0 : 0.2 }}
-                  className="absolute inset-x-0 top-1 z-20 flex items-center justify-center gap-3 text-xs">
-                  {([-1, 1] as const).map((direction) => {
-                    const page = shelfPage + direction;
-                    return (
-                      <React.Fragment key={direction}>
-                        {direction > 0 && <span aria-live="polite">{shelfPage + 1} / {pageCount}</span>}
-                        <button type="button" disabled={page < 0 || page >= pageCount}
-                          onClick={() => slideTo(mode, page, () => onShelfPageChange(page), direction)}
-                          className={`${toolbarButton} disabled:opacity-40`}>
-                          {direction < 0 ? '上一组' : '下一组'}
-                        </button>
-                      </React.Fragment>
-                    );
-                  })}
-                </motion.nav>
-              )}
+              <div
+                className={`w-full h-14 bg-gradient-to-b ${
+                  isDark
+                    ? 'from-black/80 to-transparent'
+                    : 'from-black/15 to-transparent'
+                }`}
+              />
             </div>
           )}
         </section>
@@ -549,7 +488,7 @@ export const BookshelfView = React.memo(function BookshelfView({
         <div className="flex items-center space-x-4">
           <span>馆藏本：{albums.length} 部</span>
         </div>
-        <span>点击封面翻书 · 空格暂停或播放</span>
+        <span>{mode !== 'search' && '滚轮浏览 · '}点击封面翻书 · 空格暂停或播放</span>
       </footer>
     </div>
   );

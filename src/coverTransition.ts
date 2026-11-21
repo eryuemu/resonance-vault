@@ -123,18 +123,14 @@ export async function returnBookToShelf(from: string, to: string, update: () => 
   };
   const shelfScene = Array.from(shelf.querySelectorAll<HTMLElement>('[data-shelf-return-scene], [data-shelf-slot]'))
     .filter((item) => item !== slot)
-    .map((item) => ({ item, inFront: overlapsLanding(item) }));
+    .map((item) => ({ item, inFront: overlapsLanding(item), opacity: getComputedStyle(item).opacity }));
+  const landingOpacity = getComputedStyle(slot).opacity;
 
   const poseStyle = getComputedStyle(pose);
   const landingRoll = poseStyle.transform;
   const [originX, originY] = poseStyle.transformOrigin.split(' ').map(parseFloat);
   const bookStyle = getComputedStyle(book);
   const landingBook = { width: bookStyle.width, height: bookStyle.height, transform: bookStyle.transform };
-  const bookKeyframes: Keyframe[] = [{ ...startSize, transform: startTransform }, landingBook];
-  const shelfMode = slot.closest<HTMLElement>('[data-shelf-mode]')?.dataset.shelfMode;
-  if (shelfMode === 'fan' || shelfMode === 'cascade') {
-    bookKeyframes.splice(1, 0, { offset: 0.42, transform: 'rotateX(-11deg) rotateY(-26deg)' });
-  }
   const landingFinish = coverFinish(getComputedStyle(cover));
   const caption = cover.querySelector<HTMLElement>('.hardcover-caption');
   const landingCaption = caption?.offsetTop;
@@ -174,8 +170,9 @@ export async function returnBookToShelf(from: string, to: string, update: () => 
       { transform: 'none', translate: `${x}px ${y}px`, scale: `${scaleX} ${scaleY}` },
       { transform: landingRoll, translate: '0px 0px', scale: '1 1' }
     ], bookReturnTiming));
-    animations.push(book.animate(bookKeyframes, bookReturnTiming));
+    animations.push(book.animate([{ ...startSize, transform: startTransform }, landingBook], bookReturnTiming));
     animations.push(cover.animate([startFinish, landingFinish], bookReturnTiming));
+    if (landingOpacity !== '1') animations.push(slot.animate([{ opacity: 1 }, { opacity: landingOpacity }], bookReturnTiming));
     if (caption && startCaption !== undefined && landingCaption !== undefined) {
       animations.push(caption.animate([
         { top: `${startCaption}px`, bottom: 'auto' },
@@ -184,10 +181,10 @@ export async function returnBookToShelf(from: string, to: string, update: () => 
     }
 
     const sceneTiming = { duration: 360, fill: 'both' } as const;
-    for (const { item, inFront } of shelfScene) {
+    for (const { item, inFront, opacity } of shelfScene) {
       // Reveal overlapping neighbors as the moving book slides behind them.
       animations.push(item.animate([
-        { opacity: 0, offset: 0 }, { opacity: 0, offset: inFront ? 0.52 : 0.3, easing: 'ease' }, { opacity: 1 }
+        { opacity: 0, offset: 0 }, { opacity: 0, offset: inFront ? 0.52 : 0.3, easing: 'ease' }, { opacity }
       ], { ...sceneTiming, duration: inFront ? 460 : 360 }));
     }
     const label = slot.querySelector<HTMLElement>('[data-shelf-book-caption]');
