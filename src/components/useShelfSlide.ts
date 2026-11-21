@@ -27,7 +27,7 @@ export function useShelfSlide() {
   useLayoutEffect(() => stop, []);
 
   return (row: HTMLElement | null, nextIds: string[], reduceMotion: boolean, update: () => void, direction?: -1 | 1) => {
-    if (!row || reduceMotion || !row.animate || !CSS.supports('scale', '1 1')) {
+    if (!row || reduceMotion || !row.animate || !CSS.supports('translate', '0px 0px')) {
       stop();
       update();
       return;
@@ -59,20 +59,14 @@ export function useShelfSlide() {
       const fromX = start.left - end.left;
       const fromY = start.top - end.top;
       const toX = exitX ?? 0;
-      const scaleX = start.width / end.width;
-      const scaleY = start.height / end.height;
       const distance = Math.hypot(toX - fromX, fromY);
-      if (distance < 1 && Math.abs(scaleX - 1) < 0.01 && Math.abs(scaleY - 1) < 0.01) return;
+      if (distance < 1) return;
       const lift = Math.min(distance * 0.09, 16);
       const frames = Array.from({ length: 9 }, (_, step) => {
         const progress = step / 8;
         const x = fromX + (toX - fromX) * progress;
         const y = fromY * (1 - progress) - 4 * lift * progress * (1 - progress);
-        const resize = exitX === undefined ? 1 - progress : 1;
-        return {
-          translate: `${x}px ${y}px`,
-          scale: `${1 + (scaleX - 1) * resize} ${1 + (scaleY - 1) * resize}`
-        };
+        return { translate: `${x}px ${y}px` };
       });
       const flight = book.animate(frames, {
         duration: 480 + Math.min(distance * 0.14, 78) + (index % 4) * 12,

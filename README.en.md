@@ -44,10 +44,12 @@ The project is in early, active development. The visual design, 3D physical inte
   - [x] Local offline-first archive convention (one folder per track or album with audio, key art, and video)
 
 - **In progress / roadmap**:
-  - [ ] **Beginner-friendly import**: drag-and-drop folder parsing, IndexedDB-only local persistence, open-source scraper toolchain
+  - [x] **Local library foundation**: desktop folder picker, recursive scanning, tags and covers, deduplicated imports, persistent local index
+  - [ ] **Import improvements**: folder drag and drop, metadata editing, relinking moved files
   - [ ] **Tags and classification**: native ID3 extraction, smart album clustering, user-defined bookmark labels
   - [ ] **Lyrics system**: smooth lyrics built on the microsecond-eased interpolation used by desktop wallpaper players, in an ink-and-stone visual style
-  - [ ] **Cross-platform desktop**: Tauri v2 packaging for Linux (.AppImage/.deb) and Windows (.exe/.msi)
+  - [ ] **Desktop validation and release**: Electron uses Chromium to render the same interface and full transitions as the web version. Builds target Linux (.AppImage/.deb) and Windows (.exe).
+  - [ ] **Cloud sources**: after the local release is stable, reuse the shelf and player with additional sources
   - [ ] **Mobile and sensors**: Android support, with gyroscope-driven physical light (tilt parallax) and touch pressure feedback
 
 ---
@@ -118,6 +120,23 @@ resonance-vault/
 
 ## Running locally
 
+### Desktop application
+
+The first release targets **install → choose a music folder → play**. It scans subfolders, reads tags and covers, falls back to filenames and default artwork, and restores the local index after restarting. Original media stays in place. No account or cloud service is required.
+
+After the first import, use `Ctrl+O` or the Music Library menu to add more folders. The shelf, spreads, stage and player share the same interface, fonts and animations with the web version.
+
+The [desktop workflow](.github/workflows/desktop.yml) builds Linux AppImage / deb and Windows NSIS installers. Run **Desktop packages** in GitHub Actions and download the resulting artifacts. Native installer validation is still pending. Developer music and symlinks are excluded from desktop bundles.
+
+Development requires Node.js, Rust and native build dependencies. See [desktop development](docs/desktop.md).
+
+```bash
+npm ci
+npm run desktop:dev
+```
+
+### Web development preview
+
 ### 1. Install dependencies
 
 ```bash
@@ -155,7 +174,9 @@ local-music-library/
 │   └── README.md               # Historical background and archive notes
 ```
 
-Place the folder under `public/albums/<folder_name>` (or symlink it there) and configure its tracks and paths in `src/data/vaultData.ts`; the spread and player load it automatically.
+The desktop app imports a selected folder directly: no fixed filenames, `metadata.json`, or source edits are required. Import supports MP3, FLAC, M4A, AAC, WAV, OGG, Opus and AIFF; playback depends on the system media components. A single MP4 / WebM / M4V in an album folder is associated as its PV.
+
+For the web development preview, place the folder under `public/albums/<folder_name>` (or symlink it there) and configure its tracks and paths in `src/data/vaultData.ts`. These assets are excluded from desktop installers.
 
 ---
 

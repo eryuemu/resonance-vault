@@ -189,7 +189,7 @@ export const GalleryStageView: React.FC<GalleryStageViewProps> = ({
                     《{album.title}》
                   </span>
                   <span className={isDark ? 'text-[#7e8090]' : 'text-[#757787]'}>
-                    {album.artist} · {album.releaseDate}
+                    {[album.artist, album.releaseDate].filter(Boolean).join(' · ')}
                   </span>
                 </div>
                 <div className="text-right">

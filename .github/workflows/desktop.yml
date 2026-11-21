@@ -1,0 +1,49 @@
+name: Desktop packages
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            artifact: linux-x64
+          - os: windows-latest
+            artifact: windows-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: native -> target
+      - name: Install Linux packaging dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fakeroot dpkg-dev
+      - run: npm ci
+      - name: Test local library
+        run: npm run test:library
+      - name: Build desktop installer
+        run: npm run desktop:build -- --x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: resonance-vault-${{ matrix.artifact }}
+          if-no-files-found: error
+          path: |
+            release/*.deb
+            release/*.AppImage
+            release/*.exe

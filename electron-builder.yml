@@ -1,0 +1,27 @@
+appId: io.github.eryuemu.resonancevault
+productName: Resonance Vault
+directories:
+  output: release
+files:
+  - desktop/**
+  - dist/**
+  - "!node_modules/**"
+linux:
+  category: AudioVideo
+  icon: desktop/icon.png
+  syncDesktopName: true
+  target:
+    - AppImage
+    - deb
+  extraResources:
+    - from: native/target/release/vault-library
+      to: vault-library
+win:
+  icon: desktop/icon.ico
+  target: nsis
+  extraResources:
+    - from: native/target/release/vault-library.exe
+      to: vault-library.exe
+nsis:
+  oneClick: false
+  perMachine: false

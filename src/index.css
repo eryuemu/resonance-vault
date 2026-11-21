@@ -291,6 +291,8 @@ html[data-vault-transition='frame-return']::view-transition-old(vault-cover) {
 .shelf-deck {
   --book-width-scale: 0.95;
   --shelf-book-base-width: calc(clamp(12rem, 22.5vw, 20.25rem) * var(--book-width-scale, 1));
+  --shelf-fan-spacing: 0.58;
+  --shelf-fan-span: max(2, var(--shelf-fan-intervals) * var(--shelf-fan-spacing) + 1.25);
   container-type: inline-size;
 }
 
@@ -299,7 +301,9 @@ html[data-vault-transition='frame-return']::view-transition-old(vault-cover) {
 }
 
 .shelf-book-slot {
-  --shelf-book-width: var(--shelf-book-base-width);
+  /* Use the fan's available space for every layout so switching or paging never resizes a book. */
+  --shelf-book-width: min(var(--shelf-book-base-width), 96cqi / var(--shelf-fan-span));
+  width: var(--shelf-book-width);
   z-index: var(--book-layer);
   transform-origin: top left;
 }
@@ -608,10 +612,6 @@ html[data-vault-transition='frame-return']::view-transition-old(vault-cover) {
   padding-top: clamp(1rem, 2.5vw, 2.5rem);
   padding-bottom: clamp(3rem, 5vw, 4.5rem);
   overflow-x: clip;
-}
-
-.shelf-book-slot[data-fan-book] {
-  --shelf-book-width: min(var(--shelf-book-base-width), 96cqi / var(--fan-span, 2.8));
 }
 
 .shelf-book-slot[data-stacked-book] {

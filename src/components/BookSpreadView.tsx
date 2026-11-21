@@ -335,7 +335,7 @@ export const BookSpreadView: React.FC<BookSpreadViewProps> = ({
                   isDark ? 'text-[#c5a059]' : 'text-[#967530]'
                 }`}
               >
-                ARCHIVAL RELEASE // {album.releaseDate}
+                ARCHIVAL RELEASE{album.releaseDate && ` // ${album.releaseDate}`}
               </span>
               <h2
                 className={`text-2xl sm:text-3xl lg:text-[2.1rem] font-serif font-normal tracking-wide leading-tight ${

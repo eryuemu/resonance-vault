@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1100" viewBox="0 0 800 1100">
+  <rect width="800" height="1100" fill="#25272b"/>
+  <rect x="40" y="40" width="720" height="1020" rx="2" fill="none" stroke="#c5a059" stroke-opacity=".5"/>
+  <circle cx="400" cy="460" r="170" fill="#16181b" stroke="#c5a059" stroke-opacity=".5"/>
+  <circle cx="400" cy="460" r="145" fill="none" stroke="#34363b" stroke-width="18"/>
+  <circle cx="400" cy="460" r="115" fill="none" stroke="#34363b" stroke-width="2"/>
+  <circle cx="400" cy="460" r="48" fill="#c5a059"/>
+  <circle cx="400" cy="460" r="8" fill="#16181b"/>
+  <text x="400" y="760" text-anchor="middle" fill="#dfd8c9" font-family="serif" font-size="32" letter-spacing="6">RESONANCE</text>
+  <text x="400" y="815" text-anchor="middle" fill="#c5a059" font-family="serif" font-size="20" letter-spacing="8">LOCAL COLLECTION</text>
+</svg>

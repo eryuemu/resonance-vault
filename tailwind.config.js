@@ -20,8 +20,8 @@ export default {
         }
       },
       fontFamily: {
-        serif: ['"Noto Serif SC"', 'Songti SC', 'SimSun', 'serif'],
-        mono: ['"JetBrains Mono"', 'Fira Code', 'monospace']
+        serif: ['"Noto Serif SC Variable"', 'Songti SC', 'SimSun', 'serif'],
+        mono: ['"JetBrains Mono Variable"', 'Fira Code', 'monospace']
       }
     },
   },

@@ -93,8 +93,6 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
     y.set(0);
   };
 
-  const fanSpacing = 0.58;
-
   // Symmetrical fan angle fanning out from center
   const fanAngle = offset * 6.5;
   // On hover, book straightens slightly towards vertical
@@ -108,11 +106,10 @@ export const ThreeDimensionalBook: React.FC<ThreeDimensionalBookProps> = ({
   const bookLayer = fan ? fanBaseLayer : cascade ? 25 - index : hovering ? 40 : 10 + index;
 
   const slotStyle = {
-    '--fan-span': fan ? Math.max(2, (total - 1) * fanSpacing + 1.25) : undefined,
     '--book-layer': bookLayer,
     '--stack-offset': stacked ? offset : undefined,
     '--cascade-offset': cascade ? offset : undefined,
-    left: fan ? `calc(var(--shelf-book-width) * ${offset * fanSpacing})` : undefined,
+    left: fan ? `calc(var(--shelf-book-width) * var(--shelf-fan-spacing) * ${offset})` : undefined,
     top: stacked ? index * 8 : fan ? `calc(var(--shelf-book-width) * ${Math.pow(Math.abs(offset), 2) * 0.012})` : undefined
   } as React.CSSProperties;
 

@@ -28,7 +28,7 @@ interface BookshelfViewProps {
 const pageSizes = { stacked: 4, fan: 5, cascade: 5 };
 const searchPageSize = 40;
 
-export const BookshelfView: React.FC<BookshelfViewProps> = ({
+export const BookshelfView = React.memo(function BookshelfView({
   albums,
   search,
   searchOpen,
@@ -44,7 +44,7 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
   onDisplayModeChange,
   onToggleTheme,
   onSelectAlbum
-}) => {
+}: BookshelfViewProps) {
   const isDark = theme === 'dark';
   const reduceMotion = useReducedMotion();
   const [sorting, setSorting] = useState(false);
@@ -446,7 +446,10 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
           ) : (
             <>
               <div ref={rowRef} data-shelf-scroll={mode === 'shelf' ? '' : undefined} onScroll={updateScrollEdges}
-                style={mode === 'cascade' ? { '--cascade-intervals': Math.max(0, displayedAlbums.length - 1) } as React.CSSProperties : undefined}
+                style={{
+                  '--shelf-fan-intervals': Math.max(0, Math.min(pageSizes.fan, orderedResults.length) - 1),
+                  '--cascade-intervals': mode === 'cascade' ? Math.max(0, displayedAlbums.length - 1) : undefined
+                } as React.CSSProperties}
                 className={`shelf-deck relative isolate w-full px-4 pt-8 z-10 ${mode === 'shelf'
                   ? 'shelf-row flex items-end gap-6 sm:gap-10 lg:gap-14 pb-2 overflow-x-auto no-scrollbar'
                   : `grid place-content-center overflow-x-clip ${mode === 'fan' ? 'shelf-fan' : mode === 'cascade' ? 'shelf-cascade' : 'pb-[4.25rem]'}`}`}
@@ -545,11 +548,9 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
       >
         <div className="flex items-center space-x-4">
           <span>馆藏本：{albums.length} 部</span>
-          <span>•</span>
-          <span>路径：/workspace/本地音乐库</span>
         </div>
         <span>点击封面翻书 · 空格暂停或播放</span>
       </footer>
     </div>
   );
-};
+});

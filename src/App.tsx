@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useLayoutEffect, useMemo } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import { Minimize2 } from 'lucide-react';
-import { LOCAL_ARCHIVE } from './data/vaultData';
 import { Album, Track, ViewMode, ThemeMode, shelfDisplayModes } from './types';
 import { moveCover, returnBookToShelf, type CoverReversal } from './coverTransition';
 import { useSyncedVideo } from './useSyncedVideo';
@@ -12,19 +11,21 @@ import { QuietPlayer } from './components/QuietPlayer';
 import { FolioQueueDrawer } from './components/FolioQueueDrawer';
 import { knownIds, moveItem, readPreference, writePreference } from './preferences';
 import { usePlayback } from './usePlayback';
+import { useLibrary } from './library/useLibrary';
+import { LibraryWelcome } from './components/LibraryWelcome';
+import { LibraryStatus } from './components/LibraryStatus';
 
-const albumIds = new Set(LOCAL_ARCHIVE.map((album) => album.id));
-const trackIndex = new Map(LOCAL_ARCHIVE.flatMap((album) => album.tracks.map((track) => [track.id, { album, track }] as const)));
-
-export const App: React.FC = () => {
+const Vault: React.FC<{ libraryAlbums: Album[] }> = ({ libraryAlbums }) => {
+  const albumIds = useMemo(() => new Set(libraryAlbums.map((album) => album.id)), [libraryAlbums]);
+  const trackIndex = useMemo(() => new Map(libraryAlbums.flatMap((album) => album.tracks.map((track) => [track.id, { album, track }] as const))), [libraryAlbums]);
   const [albumOrder, setAlbumOrder] = useState(() => knownIds(readPreference('arc_shelf_order'), albumIds));
   const albums = useMemo(() => {
-    const known = new Map(LOCAL_ARCHIVE.map((album) => [album.id, album]));
-    return [...albumOrder.map((id) => known.get(id)!), ...LOCAL_ARCHIVE.filter((album) => !albumOrder.includes(album.id))];
-  }, [albumOrder]);
+    const known = new Map(libraryAlbums.map((album) => [album.id, album]));
+    return [...albumOrder.filter((id) => known.has(id)).map((id) => known.get(id)!), ...libraryAlbums.filter((album) => !albumOrder.includes(album.id))];
+  }, [albumOrder, libraryAlbums]);
   const playback = usePlayback(albums);
   const { audioRef, togglePlay: handleTogglePlay } = playback;
-  const activeRecord = trackIndex.get(playback.trackId) ?? { album: LOCAL_ARCHIVE[0], track: LOCAL_ARCHIVE[0].tracks[0] };
+  const activeRecord = trackIndex.get(playback.trackId) ?? { album: albums[0], track: albums[0].tracks[0] };
   const currentTrack = activeRecord.track;
   const playingAlbum = activeRecord.album;
   const [notice, setNotice] = useState('');
@@ -33,7 +34,8 @@ export const App: React.FC = () => {
   const [searchOpen, setSearchOpen] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
   const [shelfPage, setShelfPage] = useState(0);
-  const [selectedAlbum, setSelectedAlbum] = useState<Album>(LOCAL_ARCHIVE[0]);
+  const [selectedAlbumId, setSelectedAlbumId] = useState(albums[0].id);
+  const selectedAlbum = albums.find((album) => album.id === selectedAlbumId) ?? albums[0];
   const [currentView, setCurrentView] = useState<ViewMode>('shelf');
   const [stageMedia, setStageMedia] = useState<'image' | 'video'>('image');
   const [pvBackgroundEnabled, setPvBackgroundEnabled] = useState(() => readPreference('arc_pv_background') === true);
@@ -84,25 +86,25 @@ export const App: React.FC = () => {
   useEffect(() => writePreference('arc_folio_pv', folioPvEnabled), [folioPvEnabled]);
   useEffect(() => () => clearTimeout(noticeTimer.current), []);
 
-  const report = (message: string) => {
+  const report = useCallback((message: string) => {
     clearTimeout(noticeTimer.current);
     setNotice(message);
     noticeTimer.current = setTimeout(() => setNotice(''), 2300);
-  };
+  }, []);
 
-  const moveAlbum = (id: string, target: string) => {
+  const moveAlbum = useCallback((id: string, target: string) => {
     const ids = albums.map((album) => album.id);
     const position = ids.indexOf(target);
     setAlbumOrder(moveItem(ids, ids.indexOf(id), position));
     report(`已移到第 ${position + 1} 位`);
-  };
+  }, [albums, report]);
 
   useLayoutEffect(() => setStageMedia('image'), [currentTrack.id]);
 
   const playTrack = playback.playTrack;
   const togglePlayTrack = playback.togglePlayTrack;
 
-  const playAlbum = (album: Album) => {
+  const playAlbum = useCallback((album: Album) => {
     const isCurrentInAlbum = album.tracks.some((t) => t.id === currentTrack.id);
     if (isCurrentInAlbum) {
       handleTogglePlay();
@@ -110,7 +112,21 @@ export const App: React.FC = () => {
       const [firstTrack] = album.tracks;
       if (firstTrack) playTrack(firstTrack);
     }
-  };
+  }, [currentTrack.id, handleTogglePlay, playTrack]);
+
+  const searchShelf = useCallback((value: string) => {
+    setSearch(value);
+    shelfScroll.current = 0;
+    const shelf = mainRef.current?.querySelector('[data-shelf-scroll]');
+    if (shelf) shelf.scrollLeft = 0;
+  }, []);
+
+  const changeShelfDisplay = useCallback((mode: typeof shelfDisplayMode) => {
+    const shelf = mainRef.current?.querySelector('[data-shelf-scroll]');
+    if (shelf) shelfScroll.current = shelf.scrollLeft;
+    viewScroll.current.shelf = mainRef.current?.scrollTop ?? 0;
+    setShelfDisplayMode(mode);
+  }, []);
 
   useLayoutEffect(() => {
     if (!mainRef.current) return;
@@ -162,7 +178,7 @@ export const App: React.FC = () => {
     }
   }, [reduceMotion, search]);
 
-  const openBook = async (album: Album, source = `shelf-${album.id}`) => {
+  const openBook = useCallback(async (album: Album, source = `shelf-${album.id}`) => {
     if (transitionDestination.current) return;
     const controller = new AbortController();
     openingFlight.current = controller;
@@ -170,7 +186,7 @@ export const App: React.FC = () => {
       const moved = await navigate('spread', source, 'folio-cover', () => {
         shelfEntry.current = source;
         viewScroll.current.spread = 0;
-        setSelectedAlbum(album);
+        setSelectedAlbumId(album.id);
         setBookOpening('waiting');
         setBookClosing(false);
       }, {
@@ -184,7 +200,7 @@ export const App: React.FC = () => {
     } finally {
       openingFlight.current = null;
     }
-  };
+  }, [navigate]);
 
   const returnToShelf = useCallback(() => {
     void navigate('shelf', 'folio-cover', shelfEntry.current);
@@ -215,7 +231,7 @@ export const App: React.FC = () => {
     }
   };
 
-  const toggleTheme = () => {
+  const toggleTheme = useCallback(() => {
     setTheme((prev) => {
       const next = prev === 'dark' ? 'light' : 'dark';
       try {
@@ -223,7 +239,7 @@ export const App: React.FC = () => {
       } catch {}
       return next;
     });
-  };
+  }, []);
 
   const playSelectedAlbumPv = () => {
     const videoTrack = selectedAlbum.videoUrl ? selectedAlbum.tracks[0] : undefined;
@@ -398,23 +414,13 @@ export const App: React.FC = () => {
               onSearchOpenChange={setSearchOpen}
               shelfPage={shelfPage}
               onShelfPageChange={setShelfPage}
-              onSearch={(value) => {
-                setSearch(value);
-                shelfScroll.current = 0;
-                const shelf = mainRef.current?.querySelector('[data-shelf-scroll]');
-                if (shelf) shelf.scrollLeft = 0;
-              }}
+              onSearch={searchShelf}
               onMoveAlbum={moveAlbum}
               onPlayAlbum={playAlbum}
               onPlayTrack={togglePlayTrack}
               theme={theme}
               displayMode={shelfDisplayMode}
-              onDisplayModeChange={(mode) => {
-                const shelf = mainRef.current?.querySelector('[data-shelf-scroll]');
-                if (shelf) shelfScroll.current = shelf.scrollLeft;
-                viewScroll.current.shelf = mainRef.current?.scrollTop ?? 0;
-                setShelfDisplayMode(mode);
-              }}
+              onDisplayModeChange={changeShelfDisplay}
               onToggleTheme={toggleTheme}
               onSelectAlbum={openBook}
             />
@@ -512,6 +518,18 @@ export const App: React.FC = () => {
       )}
     </div>
   );
+};
+
+export const App: React.FC = () => {
+  const library = useLibrary();
+  if (library.loading || !library.albums.length) {
+    return <LibraryWelcome loading={library.loading} importing={library.importing} canImport={library.canImport}
+      error={library.error} loadError={library.loadError} onImport={() => void library.importFolder()} onRetry={() => void library.load()} />;
+  }
+  return <>
+    <Vault libraryAlbums={library.albums} />
+    <LibraryStatus error={library.error} message={library.message} warnings={library.warnings} importing={library.importing} />
+  </>;
 };
 
 export default App;
